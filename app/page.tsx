@@ -5,10 +5,11 @@ import { AuditTimeline } from "@/components/AuditTimeline";
 import { ChatBox } from "@/components/ChatBox";
 import { ConfirmPanel } from "@/components/ConfirmPanel";
 import { RiskCard } from "@/components/RiskCard";
-import { buildAuditLog } from "@/lib/auditLog";
+import { addAuditLog, clearAuditLogs, createAuditLog, getAuditLogs } from "@/lib/auditLog";
 import { parseIntent } from "@/lib/intentParser";
 import { executeMockTransaction, type MockTransactionResult } from "@/lib/mockWallet";
 import { evaluatePayment, walletPolicy } from "@/lib/policyEngine";
+import type { AuditLog } from "@/types";
 
 const defaultPrompt = "Pay 0.10 USDC on Base for the allowlisted x402 API.";
 
@@ -18,12 +19,13 @@ export default function Home() {
     requestId: string;
     result: MockTransactionResult;
   } | null>(null);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => getAuditLogs());
   const intent = useMemo(() => parseIntent(prompt), [prompt]);
   const decision = useMemo(() => evaluatePayment(intent), [intent]);
   const walletResult = execution?.requestId === intent.id ? execution.result : null;
   const isExecuting = decision.decision === "ALLOW" && !walletResult;
-  const auditLog = useMemo(
-    () => buildAuditLog(intent, decision, walletResult),
+  const currentAuditLog = useMemo(
+    () => createAuditLog(intent, decision, walletResult),
     [intent, decision, walletResult],
   );
 
@@ -96,7 +98,22 @@ export default function Home() {
         </Panel>
 
         <Panel title="Audit Trail" kicker="mock settlement">
-          <AuditTimeline log={auditLog} />
+          <AuditTimeline
+            logs={[currentAuditLog, ...auditLogs]}
+            onClear={() => {
+              clearAuditLogs();
+              setAuditLogs([]);
+            }}
+          />
+          <button
+            onClick={() => {
+              addAuditLog(currentAuditLog);
+              setAuditLogs(getAuditLogs());
+            }}
+            className="mt-3 w-full rounded-md border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-800 hover:border-teal-700"
+          >
+            Save current audit log
+          </button>
           <div className="mt-5 rounded-md border border-slate-300 bg-[#13231f] p-4 text-sm text-[#edf7ef]">
             <p className="font-semibold">Execution mode</p>
             <p className="mt-2 leading-6 text-[#c8d8d0]">
