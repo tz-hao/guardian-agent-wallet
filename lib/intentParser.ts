@@ -2,12 +2,14 @@ import type { PaymentRequest } from "@/types";
 
 const DEFAULT_CHAIN_ID = 8453;
 const ZERO_ADDRESS = "";
+const TRUSTED_SERVICE = "x402-service";
 
 export const samplePrompts = [
   "买 10 USDC 的 ETH",
   "buy 10 USDC ETH",
   "转账 20 USDC 给 0x123",
   "send 20 USDC to 0x123",
+  "send 20 USDC to 0xBAD123",
   "approve unlimited USDC",
   "What is the weather today?",
 ];
@@ -23,7 +25,7 @@ export function parseIntent(input: string): PaymentRequest {
     action,
     token: parseToken(normalized),
     amount: parseAmount(normalized),
-    recipient: action === "transfer" ? parseRecipient(normalized) : ZERO_ADDRESS,
+    recipient: action === "transfer" ? parseRecipient(normalized) : TRUSTED_SERVICE,
     spender: action === "approve" ? parseSpender(normalized) : ZERO_ADDRESS,
     chainId: DEFAULT_CHAIN_ID,
     timestamp: Date.now(),

@@ -8,14 +8,14 @@ import { RiskCard } from "@/components/RiskCard";
 import { buildAuditLog } from "@/lib/auditLog";
 import { parseIntent } from "@/lib/intentParser";
 import { runMockWallet } from "@/lib/mockWallet";
-import { evaluatePolicy, walletPolicy } from "@/lib/policyEngine";
+import { evaluatePayment, walletPolicy } from "@/lib/policyEngine";
 
 const defaultPrompt = "Pay 0.10 USDC on Base for the allowlisted x402 API.";
 
 export default function Home() {
   const [prompt, setPrompt] = useState(defaultPrompt);
   const intent = useMemo(() => parseIntent(prompt), [prompt]);
-  const decision = useMemo(() => evaluatePolicy(intent), [intent]);
+  const decision = useMemo(() => evaluatePayment(intent), [intent]);
   const walletResult = useMemo(() => runMockWallet(intent, decision), [intent, decision]);
   const auditLog = useMemo(
     () => buildAuditLog(intent, decision, walletResult),
@@ -39,8 +39,8 @@ export default function Home() {
           </div>
           <div className="grid grid-cols-2 gap-2 text-sm md:grid-cols-3">
             <Metric label="Budget" value={`$${walletPolicy.maxAmount.toFixed(2)}`} />
-            <Metric label="Chain ID" value={String(walletPolicy.chainId)} />
-            <Metric label="Token" value={walletPolicy.token} />
+            <Metric label="Trusted" value={String(walletPolicy.trustedRecipients.length)} />
+            <Metric label="Mode" value="Mock" />
           </div>
         </div>
       </section>

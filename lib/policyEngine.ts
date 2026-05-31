@@ -1,66 +1,103 @@
 import type { PaymentRequest, PolicyDecision } from "@/types";
 
+const trustedRecipients = ["0x123", "0xSAFE", "x402-service"];
+
 export const walletPolicy = {
-  chainId: 8453,
-  token: "USDC",
-  maxAmount: 0.1,
-  dailyBudget: 1,
-  allowedRecipients: ["0xServiceProviderTreasury00000000000000000001"],
-  allowedSpenders: ["0xGuardianPolicySpender00000000000000000003"],
-  highRiskActions: ["approve", "swap"],
+  maxAmount: 50,
+  trustedRecipients,
 };
 
-export function evaluatePolicy(request: PaymentRequest): PolicyDecision {
-  const rulesTriggered: string[] = [];
+type PolicyRule = {
+  id: string;
+  matches: (request: PaymentRequest) => boolean;
+  decision: Omit<PolicyDecision, "rulesTriggered">;
+};
 
-  if (request.chainId !== walletPolicy.chainId) rulesTriggered.push("chain_not_allowed");
-  if (request.token !== walletPolicy.token) rulesTriggered.push("token_not_allowed");
-  if (!walletPolicy.allowedRecipients.includes(request.recipient)) {
-    rulesTriggered.push("recipient_not_allowed");
-  }
-  if (request.spender && !walletPolicy.allowedSpenders.includes(request.spender)) {
-    rulesTriggered.push("spender_not_allowed");
-  }
-  if (request.amount > walletPolicy.maxAmount) {
-    rulesTriggered.push("amount_exceeds_single_payment_cap");
-  }
-  if (request.isUnlimitedApproval) {
-    rulesTriggered.push("unlimited_approval");
-  }
-  if (request.action === "unknown") {
-    rulesTriggered.push("unknown_action");
-  }
-  if (request.rawInput.toLowerCase().includes("ignore all previous")) {
-    rulesTriggered.push("prompt_injection_text_detected");
-  }
-
-  if (
-    rulesTriggered.includes("recipient_not_allowed") ||
-    rulesTriggered.includes("spender_not_allowed") ||
-    rulesTriggered.includes("unlimited_approval")
-  ) {
-    return {
+const rules: PolicyRule[] = [
+  {
+    id: "unlimited_approval",
+    matches: (request) => request.action === "approve" && request.isUnlimitedApproval,
+    decision: {
       decision: "DENY",
       riskLevel: "HIGH",
-      reason: "This crosses a hard wallet boundary before any signing or settlement step.",
-      rulesTriggered,
-    };
-  }
+      reason: "Unlimited approval is dangerous",
+    },
+  },
+  {
+    id: "suspicious_recipient",
+    matches: (request) => startsWithBadAddress(request.recipient),
+    decision: {
+      decision: "CONFIRM",
+      riskLevel: "HIGH",
+      reason: "Unknown or suspicious recipient",
+    },
+  },
+  {
+    id: "missing_transfer_recipient",
+    matches: (request) => request.action === "transfer" && request.recipient.trim() === "",
+    decision: {
+      decision: "CONFIRM",
+      riskLevel: "MEDIUM",
+      reason: "Transfer recipient is missing",
+    },
+  },
+  {
+    id: "amount_exceeds_daily_budget",
+    matches: (request) => request.amount > walletPolicy.maxAmount,
+    decision: {
+      decision: "CONFIRM",
+      riskLevel: "HIGH",
+      reason: "Amount exceeds daily budget",
+    },
+  },
+  {
+    id: "unknown_action",
+    matches: (request) => request.action === "unknown",
+    decision: {
+      decision: "CONFIRM",
+      riskLevel: "MEDIUM",
+      reason: "Unknown action needs review",
+    },
+  },
+  {
+    id: "limited_approval",
+    matches: (request) => request.action === "approve" && !request.isUnlimitedApproval,
+    decision: {
+      decision: "CONFIRM",
+      riskLevel: "MEDIUM",
+      reason: "Token approval needs review",
+    },
+  },
+  {
+    id: "trusted_recipient_low_amount",
+    matches: (request) =>
+      request.amount <= walletPolicy.maxAmount && trustedRecipients.includes(request.recipient),
+    decision: {
+      decision: "ALLOW",
+      riskLevel: "LOW",
+      reason: "Trusted recipient and amount within daily budget",
+    },
+  },
+];
 
-  if (rulesTriggered.length > 0 || walletPolicy.highRiskActions.includes(request.action)) {
+export function evaluatePayment(request: PaymentRequest): PolicyDecision {
+  const matched = rules.find((rule) => rule.matches(request));
+
+  if (!matched) {
     return {
       decision: "CONFIRM",
       riskLevel: "MEDIUM",
-      reason: "This is outside the low-risk automation envelope and needs human review.",
-      rulesTriggered: rulesTriggered.length ? rulesTriggered : ["high_risk_action"],
+      reason: "Recipient is not trusted",
+      rulesTriggered: ["recipient_not_trusted"],
     };
   }
 
   return {
-    decision: "ALLOW",
-    riskLevel: "LOW",
-    reason: "This stays inside the approved budget, recipient, token, chain, and action scope.",
-    rulesTriggered: ["within_policy_scope"],
+    ...matched.decision,
+    rulesTriggered: [matched.id],
   };
 }
 
+function startsWithBadAddress(recipient: string) {
+  return recipient.startsWith("0xBAD") || recipient.startsWith("0xbad");
+}
