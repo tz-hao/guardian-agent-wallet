@@ -1,59 +1,66 @@
-import type { PolicyDecision, WalletIntent } from "@/types";
+import type { PaymentRequest, PolicyDecision } from "@/types";
 
 export const walletPolicy = {
-  chain: "base",
-  asset: "USDC",
+  chainId: 8453,
+  token: "USDC",
   maxAmount: 0.1,
   dailyBudget: 1,
   allowedRecipients: ["0xServiceProviderTreasury00000000000000000001"],
-  allowedResources: ["https://api.guardian.local/v1/infer"],
-  forbiddenActions: ["approve_unlimited", "change_policy", "call_unknown_contract"],
+  allowedSpenders: ["0xGuardianPolicySpender00000000000000000003"],
+  highRiskActions: ["approve", "swap"],
 };
 
-export function evaluatePolicy(intent: WalletIntent): PolicyDecision {
-  const reasons: string[] = [];
+export function evaluatePolicy(request: PaymentRequest): PolicyDecision {
+  const rulesTriggered: string[] = [];
 
-  if (intent.chain !== walletPolicy.chain) reasons.push("chain_not_allowed");
-  if (intent.asset !== walletPolicy.asset) reasons.push("asset_not_allowed");
-  if (!walletPolicy.allowedRecipients.includes(intent.recipient)) {
-    reasons.push("recipient_not_allowed");
+  if (request.chainId !== walletPolicy.chainId) rulesTriggered.push("chain_not_allowed");
+  if (request.token !== walletPolicy.token) rulesTriggered.push("token_not_allowed");
+  if (!walletPolicy.allowedRecipients.includes(request.recipient)) {
+    rulesTriggered.push("recipient_not_allowed");
   }
-  if (!walletPolicy.allowedResources.includes(intent.resource)) {
-    reasons.push("resource_not_allowed");
+  if (request.spender && !walletPolicy.allowedSpenders.includes(request.spender)) {
+    rulesTriggered.push("spender_not_allowed");
   }
-  if (intent.amount > walletPolicy.maxAmount) {
-    reasons.push("amount_exceeds_single_payment_cap");
+  if (request.amount > walletPolicy.maxAmount) {
+    rulesTriggered.push("amount_exceeds_single_payment_cap");
   }
-  if (walletPolicy.forbiddenActions.includes(intent.action)) {
-    reasons.push("forbidden_action");
+  if (request.isUnlimitedApproval) {
+    rulesTriggered.push("unlimited_approval");
+  }
+  if (request.action === "unknown") {
+    rulesTriggered.push("unknown_action");
+  }
+  if (request.rawInput.toLowerCase().includes("ignore all previous")) {
+    rulesTriggered.push("prompt_injection_text_detected");
   }
 
-  if (reasons.includes("forbidden_action") || reasons.includes("recipient_not_allowed")) {
+  if (
+    rulesTriggered.includes("recipient_not_allowed") ||
+    rulesTriggered.includes("spender_not_allowed") ||
+    rulesTriggered.includes("unlimited_approval")
+  ) {
     return {
-      status: "deny",
-      reasons,
-      humanConfirmationRequired: false,
-      explanation:
-        "This crosses a hard wallet boundary. The policy blocks it before any signing or settlement step.",
+      decision: "DENY",
+      riskLevel: "HIGH",
+      reason: "This crosses a hard wallet boundary before any signing or settlement step.",
+      rulesTriggered,
     };
   }
 
-  if (reasons.length > 0) {
+  if (rulesTriggered.length > 0 || walletPolicy.highRiskActions.includes(request.action)) {
     return {
-      status: "needs_human_confirmation",
-      reasons,
-      humanConfirmationRequired: true,
-      explanation:
-        "This is outside the low-risk automation envelope. A wallet owner or Safe signer must review it.",
+      decision: "CONFIRM",
+      riskLevel: "MEDIUM",
+      reason: "This is outside the low-risk automation envelope and needs human review.",
+      rulesTriggered: rulesTriggered.length ? rulesTriggered : ["high_risk_action"],
     };
   }
 
   return {
-    status: "allow",
-    reasons: ["within_policy_scope"],
-    humanConfirmationRequired: false,
-    explanation:
-      "This stays inside the approved budget, recipient, resource, chain, asset, and action scope.",
+    decision: "ALLOW",
+    riskLevel: "LOW",
+    reason: "This stays inside the approved budget, recipient, token, chain, and action scope.",
+    rulesTriggered: ["within_policy_scope"],
   };
 }
 

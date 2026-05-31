@@ -1,38 +1,33 @@
-export type PolicyStatus = "allow" | "needs_human_confirmation" | "deny";
-
-export type WalletIntent = {
+export type PaymentRequest = {
   id: string;
-  label: string;
-  description: string;
   rawInput: string;
-  chain: string;
-  asset: string;
+  action: "swap" | "transfer" | "approve" | "unknown";
+  token: string;
   amount: number;
   recipient: string;
-  resource: string;
-  action: string;
-  toolReturn?: string;
-  promptInjection?: boolean;
+  spender: string;
+  chainId: number;
+  timestamp: string;
+  isUnlimitedApproval: boolean;
 };
 
 export type PolicyDecision = {
-  status: PolicyStatus;
-  reasons: string[];
-  explanation: string;
-  humanConfirmationRequired: boolean;
+  decision: "ALLOW" | "CONFIRM" | "DENY";
+  riskLevel: "LOW" | "MEDIUM" | "HIGH";
+  reason: string;
+  rulesTriggered: string[];
 };
 
-export type MockWalletResult = {
-  mode: "mock_only";
-  executed: boolean;
-  settlementId?: string;
-  message: string;
-};
-
-export type AuditEvent = {
+export type AuditLog = {
   id: string;
-  title: string;
-  detail: string;
-  status: "complete" | "blocked" | "waiting";
+  timestamp: string;
+  rawInput: string;
+  action: PaymentRequest["action"];
+  amount: number;
+  token: string;
+  recipient: string;
+  decision: PolicyDecision["decision"];
+  riskLevel: PolicyDecision["riskLevel"];
+  reason: string;
 };
 

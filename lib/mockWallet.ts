@@ -1,7 +1,14 @@
-import type { MockWalletResult, PolicyDecision, WalletIntent } from "@/types";
+import type { PaymentRequest, PolicyDecision } from "@/types";
 
-export function runMockWallet(intent: WalletIntent, decision: PolicyDecision): MockWalletResult {
-  if (decision.status === "deny") {
+export type MockWalletResult = {
+  mode: "mock_only";
+  executed: boolean;
+  settlementId?: string;
+  message: string;
+};
+
+export function runMockWallet(request: PaymentRequest, decision: PolicyDecision): MockWalletResult {
+  if (decision.decision === "DENY") {
     return {
       mode: "mock_only",
       executed: false,
@@ -9,7 +16,7 @@ export function runMockWallet(intent: WalletIntent, decision: PolicyDecision): M
     };
   }
 
-  if (decision.status === "needs_human_confirmation") {
+  if (decision.decision === "CONFIRM") {
     return {
       mode: "mock_only",
       executed: false,
@@ -20,7 +27,7 @@ export function runMockWallet(intent: WalletIntent, decision: PolicyDecision): M
   return {
     mode: "mock_only",
     executed: true,
-    settlementId: `mock-settlement-${intent.id.slice(0, 8)}`,
+    settlementId: `mock-settlement-${request.id.slice(0, 8)}`,
     message: "Mock wallet created a bounded payment payload and recorded settlement.",
   };
 }

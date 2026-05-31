@@ -1,4 +1,5 @@
-import type { MockWalletResult, PolicyDecision } from "@/types";
+import type { MockWalletResult } from "@/lib/mockWallet";
+import type { PolicyDecision } from "@/types";
 
 export function ConfirmPanel({
   decision,
@@ -14,7 +15,7 @@ export function ConfirmPanel({
       </p>
       <p className="mt-2 text-sm leading-6 text-slate-700">{walletResult.message}</p>
       <div className="mt-4 grid gap-2 text-sm text-slate-700">
-        <p>Human required: {decision.humanConfirmationRequired ? "Yes" : "No"}</p>
+        <p>Human required: {decision.decision === "CONFIRM" ? "Yes" : "No"}</p>
         <p>Mock execution: {walletResult.executed ? "Recorded" : "Not executed"}</p>
         {walletResult.settlementId ? <p className="font-mono text-xs">{walletResult.settlementId}</p> : null}
       </div>

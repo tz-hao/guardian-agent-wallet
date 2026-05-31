@@ -1,50 +1,22 @@
-import type { AuditEvent, MockWalletResult, PolicyDecision, WalletIntent } from "@/types";
+import type { AuditLog, PaymentRequest, PolicyDecision } from "@/types";
+import type { MockWalletResult } from "@/lib/mockWallet";
 
 export function buildAuditLog(
-  intent: WalletIntent,
+  request: PaymentRequest,
   decision: PolicyDecision,
   walletResult: MockWalletResult,
-): AuditEvent[] {
-  const events: AuditEvent[] = [
-    {
-      id: "intent",
-      title: "Intent captured",
-      detail: "Agent request was converted into structured wallet facts.",
-      status: "complete",
-    },
-    {
-      id: "policy",
-      title: "Policy evaluated",
-      detail: decision.reasons.join(", "),
-      status: decision.status === "deny" ? "blocked" : "complete",
-    },
-  ];
-
-  if (intent.promptInjection) {
-    events.push({
-      id: "prompt-injection",
-      title: "Prompt injection ignored",
-      detail: "Natural language instructions cannot override policy facts.",
-      status: "complete",
-    });
-  }
-
-  if (intent.toolReturn) {
-    events.push({
-      id: "tool-return",
-      title: "Tool return rechecked",
-      detail: "The wallet layer does not trust tool-provided approval blindly.",
-      status: "complete",
-    });
-  }
-
-  events.push({
-    id: "wallet",
-    title: walletResult.executed ? "Mock settlement recorded" : "Execution paused",
-    detail: walletResult.message,
-    status: walletResult.executed ? "complete" : decision.status === "deny" ? "blocked" : "waiting",
-  });
-
-  return events;
+): AuditLog {
+  return {
+    id: walletResult.settlementId ?? `audit-${request.id.slice(0, 8)}`,
+    timestamp: new Date().toISOString(),
+    rawInput: request.rawInput,
+    action: request.action,
+    amount: request.amount,
+    token: request.token,
+    recipient: request.recipient,
+    decision: decision.decision,
+    riskLevel: decision.riskLevel,
+    reason: decision.reason,
+  };
 }
 

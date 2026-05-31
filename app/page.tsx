@@ -17,7 +17,7 @@ export default function Home() {
   const intent = useMemo(() => parseIntent(prompt), [prompt]);
   const decision = useMemo(() => evaluatePolicy(intent), [intent]);
   const walletResult = useMemo(() => runMockWallet(intent, decision), [intent, decision]);
-  const auditEvents = useMemo(
+  const auditLog = useMemo(
     () => buildAuditLog(intent, decision, walletResult),
     [intent, decision, walletResult],
   );
@@ -39,8 +39,8 @@ export default function Home() {
           </div>
           <div className="grid grid-cols-2 gap-2 text-sm md:grid-cols-3">
             <Metric label="Budget" value={`$${walletPolicy.maxAmount.toFixed(2)}`} />
-            <Metric label="Chain" value={walletPolicy.chain} />
-            <Metric label="Asset" value={walletPolicy.asset} />
+            <Metric label="Chain ID" value={String(walletPolicy.chainId)} />
+            <Metric label="Token" value={walletPolicy.token} />
           </div>
         </div>
       </section>
@@ -50,11 +50,13 @@ export default function Home() {
           <ChatBox value={prompt} onChange={setPrompt} />
           <div className="mt-5 rounded-md border border-slate-300 bg-[#fbfaf4] p-4">
             <dl className="grid gap-3 text-sm">
-              <Fact label="Parsed scenario" value={intent.label} />
+              <Fact label="Request ID" value={intent.id} mono />
               <Fact label="Action" value={intent.action} />
-              <Fact label="Amount" value={`${intent.amount.toFixed(2)} ${intent.asset}`} />
+              <Fact label="Amount" value={`${intent.amount.toFixed(2)} ${intent.token}`} />
               <Fact label="Recipient" value={intent.recipient} mono />
-              <Fact label="Resource" value={intent.resource} mono />
+              <Fact label="Spender" value={intent.spender || "none"} mono />
+              <Fact label="Chain ID" value={String(intent.chainId)} />
+              <Fact label="Unlimited approval" value={intent.isUnlimitedApproval ? "true" : "false"} />
             </dl>
           </div>
         </Panel>
@@ -67,7 +69,7 @@ export default function Home() {
         </Panel>
 
         <Panel title="Audit Trail" kicker="mock settlement">
-          <AuditTimeline events={auditEvents} />
+          <AuditTimeline log={auditLog} />
           <div className="mt-5 rounded-md border border-slate-300 bg-[#13231f] p-4 text-sm text-[#edf7ef]">
             <p className="font-semibold">Execution mode</p>
             <p className="mt-2 leading-6 text-[#c8d8d0]">
@@ -126,4 +128,3 @@ function Fact({
     </div>
   );
 }
-
