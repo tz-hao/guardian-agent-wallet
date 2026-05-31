@@ -14,7 +14,7 @@ export function AuditTimeline({ log }: { log: AuditLog }) {
     },
     {
       title: log.decision === "ALLOW" ? "Mock settlement recorded" : "Execution paused",
-      detail: log.reason,
+      detail: log.id.startsWith("0xMOCK") ? `${log.reason} (${log.id})` : log.reason,
       status: log.decision === "ALLOW" ? "complete" : log.decision === "DENY" ? "blocked" : "waiting",
     },
   ];
@@ -43,4 +43,3 @@ export function AuditTimeline({ log }: { log: AuditLog }) {
     </div>
   );
 }
-

@@ -1,34 +1,24 @@
-import type { PaymentRequest, PolicyDecision } from "@/types";
+import type { PaymentRequest } from "@/types";
 
-export type MockWalletResult = {
-  mode: "mock_only";
-  executed: boolean;
-  settlementId?: string;
-  message: string;
+export type MockTransactionResult = {
+  success: boolean;
+  txHash: string;
 };
 
-export function runMockWallet(request: PaymentRequest, decision: PolicyDecision): MockWalletResult {
-  if (decision.decision === "DENY") {
-    return {
-      mode: "mock_only",
-      executed: false,
-      message: "Mock wallet refused to create a payment payload.",
-    };
-  }
+export async function executeMockTransaction(
+  request: PaymentRequest,
+): Promise<MockTransactionResult> {
+  await new Promise((resolve) => setTimeout(resolve, 500));
 
-  if (decision.decision === "CONFIRM") {
+  if (request.action === "unknown") {
     return {
-      mode: "mock_only",
-      executed: false,
-      message: "Mock wallet is waiting for human confirmation.",
+      success: false,
+      txHash: "",
     };
   }
 
   return {
-    mode: "mock_only",
-    executed: true,
-    settlementId: `mock-settlement-${request.id.slice(0, 8)}`,
-    message: "Mock wallet created a bounded payment payload and recorded settlement.",
+    success: true,
+    txHash: `0xMOCK${request.id.replaceAll("-", "").slice(0, 24).toUpperCase()}`,
   };
 }
-

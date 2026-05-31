@@ -1,13 +1,13 @@
+import type { MockTransactionResult } from "@/lib/mockWallet";
 import type { AuditLog, PaymentRequest, PolicyDecision } from "@/types";
-import type { MockWalletResult } from "@/lib/mockWallet";
 
 export function buildAuditLog(
   request: PaymentRequest,
   decision: PolicyDecision,
-  walletResult: MockWalletResult,
+  walletResult: MockTransactionResult | null,
 ): AuditLog {
   return {
-    id: walletResult.settlementId ?? `audit-${request.id.slice(0, 8)}`,
+    id: walletResult?.txHash || `audit-${request.id.slice(0, 8)}`,
     timestamp: new Date().toISOString(),
     rawInput: request.rawInput,
     action: request.action,
@@ -19,4 +19,3 @@ export function buildAuditLog(
     reason: decision.reason,
   };
 }
-

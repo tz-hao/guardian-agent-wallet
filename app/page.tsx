@@ -1,26 +1,49 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AuditTimeline } from "@/components/AuditTimeline";
 import { ChatBox } from "@/components/ChatBox";
 import { ConfirmPanel } from "@/components/ConfirmPanel";
 import { RiskCard } from "@/components/RiskCard";
 import { buildAuditLog } from "@/lib/auditLog";
 import { parseIntent } from "@/lib/intentParser";
-import { runMockWallet } from "@/lib/mockWallet";
+import { executeMockTransaction, type MockTransactionResult } from "@/lib/mockWallet";
 import { evaluatePayment, walletPolicy } from "@/lib/policyEngine";
 
 const defaultPrompt = "Pay 0.10 USDC on Base for the allowlisted x402 API.";
 
 export default function Home() {
   const [prompt, setPrompt] = useState(defaultPrompt);
+  const [execution, setExecution] = useState<{
+    requestId: string;
+    result: MockTransactionResult;
+  } | null>(null);
   const intent = useMemo(() => parseIntent(prompt), [prompt]);
   const decision = useMemo(() => evaluatePayment(intent), [intent]);
-  const walletResult = useMemo(() => runMockWallet(intent, decision), [intent, decision]);
+  const walletResult = execution?.requestId === intent.id ? execution.result : null;
+  const isExecuting = decision.decision === "ALLOW" && !walletResult;
   const auditLog = useMemo(
     () => buildAuditLog(intent, decision, walletResult),
     [intent, decision, walletResult],
   );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (decision.decision !== "ALLOW") {
+      return;
+    }
+
+    executeMockTransaction(intent).then((result) => {
+      if (!cancelled) {
+        setExecution({ requestId: intent.id, result });
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [intent, decision]);
 
   return (
     <main className="min-h-screen bg-[#f6f4ef] text-slate-950">
@@ -64,7 +87,11 @@ export default function Home() {
         <Panel title="Policy Decision" kicker="wallet boundary">
           <RiskCard decision={decision} />
           <div className="mt-5">
-            <ConfirmPanel decision={decision} walletResult={walletResult} />
+            <ConfirmPanel
+              decision={decision}
+              walletResult={walletResult}
+              isExecuting={isExecuting}
+            />
           </div>
         </Panel>
 
