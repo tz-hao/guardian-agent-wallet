@@ -1,36 +1,37 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Guardian Agent Wallet
 
-## Getting Started
+AI explains. Policy decides. Wallet enforces. Human confirms. Audit records.
 
-First, run the development server:
+Guardian Agent Wallet is a first-pass product demo for **SafePay Guard Wallet**, a bounded agent wallet interface for AI x Web3 safe execution. It does not connect to real wallets or move funds. The app demonstrates how a local policy layer classifies agent actions before any signing or settlement step.
+
+## What This Demo Shows
+
+- Action requests for x402-style paid API calls.
+- Policy evaluation: `Allowed`, `Needs Human Confirmation`, or `Denied`.
+- Risk explanations for budget, recipient, resource, and forbidden actions.
+- Audit trail events for intent capture, policy checks, mock settlement, and response release.
+- Prompt injection and forged tool return scenarios that do not override policy facts.
+
+## Run Locally
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm.cmd install
+npm.cmd run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Scenarios
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- Budgeted x402 API payment: allowed.
+- Oversized payment: needs human confirmation.
+- Unknown recipient: denied.
+- Unlimited approval: denied.
+- Forged tool return: denied by signer-style recheck.
+- Prompt injection attempt: ignored by structured policy evaluation.
 
-## Learn More
+## Current Boundaries
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Mock only: no Safe, CAW, x402 facilitator, private key, or onchain settlement.
+- No automatic GitHub push is configured.
+- Real wallet integration belongs in a later milestone after policy tests and human confirmation flows are stable.
