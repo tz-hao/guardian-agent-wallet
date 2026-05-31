@@ -5,37 +5,74 @@ export function ConfirmPanel({
   decision,
   walletResult,
   isExecuting,
+  onExecute,
+  onConfirm,
+  onReject,
 }: {
   decision: PolicyDecision;
   walletResult: MockTransactionResult | null;
   isExecuting: boolean;
+  onExecute: () => void;
+  onConfirm: () => void;
+  onReject: () => void;
 }) {
-  const message = getMessage(decision, walletResult, isExecuting);
-
   return (
-    <div className="rounded-md border border-slate-300 bg-white p-4">
+    <div className="rounded-md border border-slate-700 bg-slate-900 p-4">
       <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-        Confirmation boundary
+        Execution gate
       </p>
-      <p className="mt-2 text-sm leading-6 text-slate-700">{message}</p>
-      <div className="mt-4 grid gap-2 text-sm text-slate-700">
-        <p>Human required: {decision.decision === "CONFIRM" ? "Yes" : "No"}</p>
-        <p>Mock execution: {walletResult?.success ? "Recorded" : "Not recorded"}</p>
-        {walletResult?.txHash ? <p className="break-words font-mono text-xs">{walletResult.txHash}</p> : null}
-      </div>
+      <p className="mt-2 text-sm leading-6 text-slate-300">{messageFor(decision, walletResult, isExecuting)}</p>
+
+      {decision.decision === "ALLOW" ? (
+        <button
+          onClick={onExecute}
+          disabled={isExecuting}
+          className="mt-4 w-full rounded-md bg-emerald-400 px-4 py-3 text-sm font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isExecuting ? "Executing..." : "Execute"}
+        </button>
+      ) : null}
+
+      {decision.decision === "CONFIRM" ? (
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <button
+            onClick={onConfirm}
+            disabled={isExecuting}
+            className="rounded-md bg-amber-400 px-4 py-3 text-sm font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Confirm
+          </button>
+          <button
+            onClick={onReject}
+            className="rounded-md border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-200 hover:border-rose-400 hover:text-rose-200"
+          >
+            Reject
+          </button>
+        </div>
+      ) : null}
+
+      {decision.decision === "DENY" ? (
+        <div className="mt-4 rounded-md border border-rose-400/40 bg-rose-400/10 p-3 text-sm text-rose-100">
+          Blocked by policy. No wallet execution is available.
+        </div>
+      ) : null}
+
+      {walletResult?.txHash ? (
+        <p className="mt-4 break-words font-mono text-xs text-cyan-200">{walletResult.txHash}</p>
+      ) : null}
     </div>
   );
 }
 
-function getMessage(
+function messageFor(
   decision: PolicyDecision,
   walletResult: MockTransactionResult | null,
   isExecuting: boolean,
 ) {
   if (isExecuting) return "Mock wallet is preparing a transaction result.";
-  if (decision.decision === "DENY") return "Mock wallet refused to create a transaction.";
-  if (decision.decision === "CONFIRM") return "Mock wallet is waiting for human confirmation.";
-  if (walletResult?.success) return "Mock wallet returned a successful transaction hash.";
-  if (walletResult && !walletResult.success) return "Mock wallet returned a failed transaction.";
-  return "Mock wallet has not executed yet.";
+  if (walletResult?.success) return "Execution recorded in the mock wallet.";
+  if (decision.decision === "ALLOW") return "Low-risk request can be executed automatically.";
+  if (decision.decision === "CONFIRM") return "Human confirmation is required before execution.";
+  return "Policy denied this request.";
 }
+
