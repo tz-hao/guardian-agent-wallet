@@ -7,7 +7,7 @@ export type PaymentRequest = {
   recipient: string;
   spender: string;
   chainId: number;
-  timestamp: string;
+  timestamp: number;
   isUnlimitedApproval: boolean;
 };
 
@@ -30,4 +30,3 @@ export type AuditLog = {
   riskLevel: PolicyDecision["riskLevel"];
   reason: string;
 };
-
