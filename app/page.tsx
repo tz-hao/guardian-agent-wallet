@@ -5,12 +5,14 @@ import { AuditTimeline } from "@/components/AuditTimeline";
 import { ChatBox } from "@/components/ChatBox";
 import { ConfirmPanel } from "@/components/ConfirmPanel";
 import { RiskCard } from "@/components/RiskCard";
+import { agentProfiles, getAgentProfile } from "@/lib/agentProfiles";
 import { addAuditLog, clearAuditLogs, createAuditLog, getAuditLogs } from "@/lib/auditLog";
 import { appConfig } from "@/lib/config";
 import { parseIntent } from "@/lib/intentParser";
-import { evaluatePayment, walletPolicy } from "@/lib/policyEngine";
+import { evaluatePayment } from "@/lib/policyEngine";
 import { getWalletAdapter } from "@/lib/wallets";
 import type {
+  AgentProfileId,
   AuditLog,
   PaymentRequest,
   PolicyDecision,
@@ -25,6 +27,7 @@ export default function Home() {
   const [input, setInput] = useState(defaultPrompt);
   const [request, setRequest] = useState<PaymentRequest | null>(null);
   const [decision, setDecision] = useState<PolicyDecision | null>(null);
+  const [agentProfileId, setAgentProfileId] = useState<AgentProfileId>("TradingAgent");
   const [walletResult, setWalletResult] = useState<WalletExecutionResult | null>(null);
   const [walletInfo, setWalletInfo] = useState<WalletInfo | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
@@ -36,7 +39,7 @@ export default function Home() {
 
   function analyzeRequest() {
     const nextRequest = parseIntent(input);
-    const nextDecision = evaluatePayment(nextRequest);
+    const nextDecision = evaluatePayment(nextRequest, getAgentProfile(agentProfileId));
 
     setRequest(nextRequest);
     setDecision(nextDecision);
@@ -83,8 +86,11 @@ export default function Home() {
             </p>
           </div>
           <div className="grid grid-cols-3 gap-2 text-sm">
-            <Metric label="Limit" value={`$${walletPolicy.singlePaymentLimit.toFixed(0)}`} />
-            <Metric label="Trusted" value={String(walletPolicy.trustedRecipients.length)} />
+            <Metric label="Agent" value={agentProfileId.replace("Agent", "")} />
+            <Metric
+              label="Limit"
+              value={`$${getAgentProfile(agentProfileId).singlePaymentLimit.toFixed(0)}`}
+            />
             <Metric label="Mode" value={appConfig.walletMode.toUpperCase()} />
           </div>
         </div>
@@ -92,6 +98,29 @@ export default function Home() {
 
       <section className="mx-auto grid max-w-7xl gap-5 px-5 py-6 md:px-8 xl:grid-cols-[1fr_1fr_0.95fr]">
         <Panel title="Action Request" kicker="agent command">
+          <label className="mb-4 block">
+            <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+              Agent profile
+            </span>
+            <select
+              value={agentProfileId}
+              onChange={(event) => {
+                const nextProfileId = event.target.value as AgentProfileId;
+                setAgentProfileId(nextProfileId);
+                if (request) {
+                  setDecision(evaluatePayment(request, getAgentProfile(nextProfileId)));
+                  setWalletResult(null);
+                }
+              }}
+              className="mt-2 w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-3 text-sm text-slate-100 outline-none focus:border-cyan-400"
+            >
+              {Object.values(agentProfiles).map((profile) => (
+                <option key={profile.id} value={profile.id}>
+                  {profile.label}
+                </option>
+              ))}
+            </select>
+          </label>
           <ChatBox value={input} onChange={setInput} onSubmit={analyzeRequest} />
           {request ? (
             <div className="mt-5 rounded-md border border-slate-700 bg-slate-950 p-4">

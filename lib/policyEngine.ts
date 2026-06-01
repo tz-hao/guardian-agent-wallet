@@ -1,4 +1,6 @@
 import type { PaymentRequest, PolicyDecision } from "@/types";
+import type { AgentProfile } from "@/types";
+import { defaultAgentProfile, resolveAgentAction } from "@/lib/agentProfiles";
 import { assessRisk } from "@/lib/riskEngine";
 
 type PolicyDecisionValue = PolicyDecision["decision"];
@@ -10,6 +12,7 @@ export type PolicyContext = {
   singlePaymentLimit: number;
   trustedRecipients: string[];
   allowedTokens: string[];
+  agentProfile: AgentProfile;
   timeWindow: {
     startHourUtc: number;
     endHourUtc: number;
@@ -30,18 +33,49 @@ export interface PolicyRule {
   evaluate(request: PaymentRequest, context: PolicyContext): PolicyRuleResult | null;
 }
 
-const trustedRecipients = ["0x123", "0xSAFE", "x402-service"];
-const allowedTokens = ["USDC", "USDT", "ETH", "DAI", "WETH"];
-
 export const walletPolicy: PolicyContext = {
   dailySpent: 0,
-  dailyBudgetLimit: 300,
-  singlePaymentLimit: 50,
-  trustedRecipients,
-  allowedTokens,
+  dailyBudgetLimit: defaultAgentProfile.dailyBudget,
+  singlePaymentLimit: defaultAgentProfile.singlePaymentLimit,
+  trustedRecipients: defaultAgentProfile.allowedRecipients,
+  allowedTokens: defaultAgentProfile.allowedTokens,
+  agentProfile: defaultAgentProfile,
   timeWindow: {
     startHourUtc: 0,
     endHourUtc: 24,
+  },
+};
+
+export function createPolicyContext(
+  agentProfile: AgentProfile = defaultAgentProfile,
+  overrides: Partial<Omit<PolicyContext, "agentProfile">> = {},
+): PolicyContext {
+  return {
+    dailySpent: overrides.dailySpent ?? walletPolicy.dailySpent,
+    dailyBudgetLimit: overrides.dailyBudgetLimit ?? agentProfile.dailyBudget,
+    singlePaymentLimit: overrides.singlePaymentLimit ?? agentProfile.singlePaymentLimit,
+    trustedRecipients: overrides.trustedRecipients ?? agentProfile.allowedRecipients,
+    allowedTokens: overrides.allowedTokens ?? agentProfile.allowedTokens,
+    agentProfile,
+    timeWindow: overrides.timeWindow ?? walletPolicy.timeWindow,
+  };
+}
+
+export const AgentPermissionPolicy: PolicyRule = {
+  id: "agent_permission",
+  label: "Agent permission",
+  evaluate(request, context) {
+    const requestedAction = resolveAgentAction(request);
+
+    if (context.agentProfile.allowedActions.includes(requestedAction)) return null;
+
+    return {
+      id: this.id,
+      decision: "DENY",
+      riskLevel: "HIGH",
+      score: 95,
+      reason: `${context.agentProfile.id} is not allowed to perform ${requestedAction} actions.`,
+    };
   },
 };
 
@@ -185,6 +219,7 @@ export const TimeWindowPolicy: PolicyRule = {
 };
 
 export const defaultPolicyRules: PolicyRule[] = [
+  AgentPermissionPolicy,
   UnknownActionPolicy,
   UnlimitedApprovalPolicy,
   AllowedTokenPolicy,
@@ -194,8 +229,11 @@ export const defaultPolicyRules: PolicyRule[] = [
   TimeWindowPolicy,
 ];
 
-export function evaluatePayment(request: PaymentRequest): PolicyDecision {
-  return evaluatePolicies(request);
+export function evaluatePayment(
+  request: PaymentRequest,
+  agentProfile: AgentProfile = defaultAgentProfile,
+): PolicyDecision {
+  return evaluatePolicies(request, createPolicyContext(agentProfile));
 }
 
 export function evaluatePolicies(

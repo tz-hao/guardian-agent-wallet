@@ -41,6 +41,16 @@ All wallet execution is routed through `WalletAdapter`:
 
 The UI does not import CAW SDKs or mock wallet internals. It only asks the selected adapter to execute a policy-approved payment intent.
 
+## Agent Profiles
+
+Agent profiles define the permission envelope before wallet execution:
+
+- `ResearchAgent`: can pay allowlisted APIs, has a small budget, and cannot trade.
+- `PaymentAgent`: can pay APIs and transfer to allowlisted recipients.
+- `TradingAgent`: can trade and has a larger budget for demo scenarios.
+
+The policy engine evaluates each request against the selected profile's allowed actions, daily budget, single-payment limit, recipients, and tokens. This keeps "what the agent wants" separate from "what this agent is allowed to do."
+
 ## Extension Points
 
 - `lib/wallets/cawWallet.ts`: replace the placeholder response with CAW API or SDK calls.

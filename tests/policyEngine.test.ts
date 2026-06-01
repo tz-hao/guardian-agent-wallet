@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { agentProfiles } from "../lib/agentProfiles";
 import {
+  createPolicyContext,
   evaluatePayment,
   evaluatePolicies,
   walletPolicy,
@@ -43,7 +45,7 @@ describe("policy engine", () => {
   });
 
   it("requires confirmation when a single payment exceeds the limit", () => {
-    const decision = evaluatePayment(request({ amount: 200 }));
+    const decision = evaluatePayment(request({ amount: 300 }));
 
     assert.equal(decision.decision, "CONFIRM");
     assert.equal(decision.riskLevel, "HIGH");
@@ -115,5 +117,62 @@ describe("policy engine", () => {
     assert.equal(decision.riskLevel, "MEDIUM");
     assert.equal(decision.score, 45);
     assert.deepEqual(decision.triggeredRules, ["time_window"]);
+  });
+
+  it("denies ResearchAgent trading actions", () => {
+    const decision = evaluatePayment(
+      request({
+        action: "swap",
+        recipient: "x402-service",
+      }),
+      agentProfiles.ResearchAgent,
+    );
+
+    assert.equal(decision.decision, "DENY");
+    assert.equal(decision.riskLevel, "HIGH");
+    assert.ok(decision.triggeredRules.includes("agent_permission"));
+  });
+
+  it("allows ResearchAgent API payments", () => {
+    const decision = evaluatePayment(
+      request({
+        action: "transfer",
+        amount: 10,
+        recipient: "x402-service",
+      }),
+      agentProfiles.ResearchAgent,
+    );
+
+    assert.equal(decision.decision, "ALLOW");
+    assert.equal(decision.riskLevel, "LOW");
+  });
+
+  it("uses PaymentAgent recipient and token permissions", () => {
+    const decision = evaluatePayment(
+      request({
+        action: "transfer",
+        amount: 20,
+        recipient: "0x123",
+        token: "DAI",
+      }),
+      agentProfiles.PaymentAgent,
+    );
+
+    assert.equal(decision.decision, "ALLOW");
+  });
+
+  it("uses TradingAgent larger budget", () => {
+    const paymentDecision = evaluatePolicies(
+      request({ action: "swap", amount: 200 }),
+      createPolicyContext(agentProfiles.PaymentAgent),
+    );
+    const tradingDecision = evaluatePolicies(
+      request({ action: "swap", amount: 200 }),
+      createPolicyContext(agentProfiles.TradingAgent),
+    );
+
+    assert.equal(paymentDecision.decision, "DENY");
+    assert.ok(paymentDecision.triggeredRules.includes("agent_permission"));
+    assert.equal(tradingDecision.decision, "ALLOW");
   });
 });

@@ -11,6 +11,20 @@ export type PaymentRequest = {
   isUnlimitedApproval: boolean;
 };
 
+export type AgentProfileId = "ResearchAgent" | "PaymentAgent" | "TradingAgent";
+
+export type AgentAllowedAction = PaymentRequest["action"] | "pay_api";
+
+export type AgentProfile = {
+  id: AgentProfileId;
+  label: string;
+  allowedActions: AgentAllowedAction[];
+  dailyBudget: number;
+  singlePaymentLimit: number;
+  allowedRecipients: string[];
+  allowedTokens: string[];
+};
+
 export type PolicyDecision = {
   decision: "ALLOW" | "CONFIRM" | "DENY";
   riskLevel: "LOW" | "MEDIUM" | "HIGH";
