@@ -1,7 +1,5 @@
 import type { PaymentRequest, RiskAssessment } from "@/types";
-
-const trustedRecipients = ["0x123", "0xSAFE", "x402-service"];
-const allowedTokens = ["USDC", "USDT", "ETH", "DAI", "WETH"];
+import { isAllowedToken, isSuspiciousAddress, isTrustedRecipient } from "@/lib/securityConfig";
 
 export function assessRisk(request: PaymentRequest): RiskAssessment {
   const factors = [
@@ -65,7 +63,7 @@ function evaluateRecipientRisk(request: PaymentRequest): RiskWarning | null {
     };
   }
 
-  if (!request.recipient || trustedRecipients.includes(request.recipient)) return null;
+  if (!request.recipient || isTrustedRecipient(request.recipient)) return null;
 
   return {
     score: 35,
@@ -90,7 +88,7 @@ function evaluateApprovalRisk(request: PaymentRequest): RiskWarning | null {
 }
 
 function evaluateTokenRisk(request: PaymentRequest): RiskWarning | null {
-  if (allowedTokens.includes(request.token)) return null;
+  if (isAllowedToken(request.token)) return null;
 
   return {
     score: 45,
@@ -101,7 +99,7 @@ function evaluateTokenRisk(request: PaymentRequest): RiskWarning | null {
 function evaluateSuspiciousContractRisk(request: PaymentRequest): RiskWarning | null {
   const target = request.spender || request.recipient;
 
-  if (!target || !startsWithBadAddress(target)) return null;
+  if (!target || !isSuspiciousAddress(target)) return null;
 
   return {
     score: 55,
@@ -130,8 +128,4 @@ function toRiskLevel(score: number): RiskAssessment["riskLevel"] {
   if (score >= 70) return "HIGH";
   if (score >= 30) return "MEDIUM";
   return "LOW";
-}
-
-function startsWithBadAddress(address: string) {
-  return address.startsWith("0xBAD") || address.startsWith("0xbad");
 }

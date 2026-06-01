@@ -2,6 +2,7 @@ import type { PaymentRequest, PolicyDecision } from "@/types";
 import type { AgentProfile } from "@/types";
 import { defaultAgentProfile, resolveAgentAction } from "@/lib/agentProfiles";
 import { assessRisk } from "@/lib/riskEngine";
+import { isSuspiciousAddress } from "@/lib/securityConfig";
 
 type PolicyDecisionValue = PolicyDecision["decision"];
 type RiskLevel = PolicyDecision["riskLevel"];
@@ -141,7 +142,7 @@ export const TrustedRecipientPolicy: PolicyRule = {
       };
     }
 
-    if (startsWithBadAddress(request.recipient)) {
+    if (isSuspiciousAddress(request.recipient)) {
       return {
         id: "suspicious_recipient",
         decision: "CONFIRM",
@@ -295,8 +296,4 @@ function buildDecision({
     triggeredRules,
     rulesTriggered: triggeredRules,
   };
-}
-
-function startsWithBadAddress(recipient: string) {
-  return recipient.startsWith("0xBAD") || recipient.startsWith("0xbad");
 }

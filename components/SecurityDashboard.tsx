@@ -86,19 +86,36 @@ export function SecurityDashboard({ view }: { view: DashboardView }) {
     if (!request || !decision) return;
 
     setIsExecuting(true);
-    if (decision.decision === "CONFIRM") {
-      recordUserConfirmation({ requestId: request.id, confirmed: true });
-    }
-    const result = await walletAdapter.executePayment({ request });
-    setWalletResult(result);
-    setIsExecuting(false);
+    try {
+      if (decision.decision === "CONFIRM") {
+        recordUserConfirmation({ requestId: request.id, confirmed: true });
+      }
 
-    recordTransactionExecuted({
-      requestId: request.id,
-      wallet: walletInfo,
-      executionResult: result,
-    });
-    setAuditLogs(getAuditLogs());
+      const result = await walletAdapter.executePayment({ request });
+      setWalletResult(result);
+      recordTransactionExecuted({
+        requestId: request.id,
+        wallet: walletInfo,
+        executionResult: result,
+      });
+    } catch (error) {
+      const failedResult: WalletExecutionResult = {
+        success: false,
+        txHash: "",
+        status: "failed",
+        walletMode: walletAdapter.mode,
+        message: error instanceof Error ? error.message : "Wallet adapter execution failed.",
+      };
+      setWalletResult(failedResult);
+      recordTransactionExecuted({
+        requestId: request.id,
+        wallet: walletInfo,
+        executionResult: failedResult,
+      });
+    } finally {
+      setIsExecuting(false);
+      setAuditLogs(getAuditLogs());
+    }
   }
 
   function rejectRequest() {

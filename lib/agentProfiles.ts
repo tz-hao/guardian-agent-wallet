@@ -1,4 +1,5 @@
 import type { AgentProfile, AgentProfileId, PaymentRequest } from "@/types";
+import { ALLOWED_TOKENS, TRUSTED_RECIPIENTS } from "@/lib/securityConfig";
 
 export const agentProfiles: Record<AgentProfileId, AgentProfile> = {
   ResearchAgent: {
@@ -16,7 +17,7 @@ export const agentProfiles: Record<AgentProfileId, AgentProfile> = {
     allowedActions: ["pay_api", "transfer"],
     dailyBudget: 300,
     singlePaymentLimit: 50,
-    allowedRecipients: ["0x123", "0xSAFE", "x402-service"],
+    allowedRecipients: [...TRUSTED_RECIPIENTS],
     allowedTokens: ["USDC", "USDT", "DAI"],
   },
   TradingAgent: {
@@ -25,8 +26,8 @@ export const agentProfiles: Record<AgentProfileId, AgentProfile> = {
     allowedActions: ["swap", "transfer", "pay_api"],
     dailyBudget: 1000,
     singlePaymentLimit: 250,
-    allowedRecipients: ["0x123", "0xSAFE", "x402-service"],
-    allowedTokens: ["USDC", "USDT", "ETH", "DAI", "WETH"],
+    allowedRecipients: [...TRUSTED_RECIPIENTS],
+    allowedTokens: [...ALLOWED_TOKENS],
   },
 };
 
