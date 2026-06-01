@@ -1,7 +1,7 @@
 const examples = [
-  "买 10 USDC 的 ETH",
-  "买 200 USDC 的 ETH",
-  "转账 20 USDC 给 0xBAD",
+  "\u4e70 10 USDC \u7684 ETH",
+  "\u4e70 200 USDC \u7684 ETH",
+  "\u8f6c\u8d26 20 USDC \u7ed9 0xBAD",
   "approve unlimited USDC",
 ];
 
@@ -43,4 +43,3 @@ export function ChatBox({
     </div>
   );
 }
-

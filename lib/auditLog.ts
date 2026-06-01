@@ -1,5 +1,4 @@
-import type { MockTransactionResult } from "@/lib/mockWallet";
-import type { AuditLog, PaymentRequest, PolicyDecision } from "@/types";
+import type { AuditLog, PaymentRequest, PolicyDecision, WalletExecutionResult } from "@/types";
 
 const STORAGE_KEY = "guardian-agent-wallet-audit-logs";
 
@@ -33,7 +32,7 @@ export function clearAuditLogs(): void {
 export function createAuditLog(
   request: PaymentRequest,
   decision: PolicyDecision,
-  walletResult: MockTransactionResult | null,
+  walletResult: WalletExecutionResult | null,
 ): AuditLog {
   return {
     id: walletResult?.txHash || `audit-${request.id.slice(0, 8)}`,
@@ -48,4 +47,3 @@ export function createAuditLog(
     reason: decision.reason,
   };
 }
-

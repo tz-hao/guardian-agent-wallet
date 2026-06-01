@@ -1,25 +1,38 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AuditTimeline } from "@/components/AuditTimeline";
 import { ChatBox } from "@/components/ChatBox";
 import { ConfirmPanel } from "@/components/ConfirmPanel";
 import { RiskCard } from "@/components/RiskCard";
 import { addAuditLog, clearAuditLogs, createAuditLog, getAuditLogs } from "@/lib/auditLog";
+import { appConfig } from "@/lib/config";
 import { parseIntent } from "@/lib/intentParser";
-import { executeMockTransaction, type MockTransactionResult } from "@/lib/mockWallet";
 import { evaluatePayment, walletPolicy } from "@/lib/policyEngine";
-import type { AuditLog, PaymentRequest, PolicyDecision } from "@/types";
+import { getWalletAdapter } from "@/lib/wallets";
+import type {
+  AuditLog,
+  PaymentRequest,
+  PolicyDecision,
+  WalletExecutionResult,
+  WalletInfo,
+} from "@/types";
 
-const defaultPrompt = "买 10 USDC 的 ETH";
+const defaultPrompt = "\u4e70 10 USDC \u7684 ETH";
+const walletAdapter = getWalletAdapter();
 
 export default function Home() {
   const [input, setInput] = useState(defaultPrompt);
   const [request, setRequest] = useState<PaymentRequest | null>(null);
   const [decision, setDecision] = useState<PolicyDecision | null>(null);
-  const [walletResult, setWalletResult] = useState<MockTransactionResult | null>(null);
+  const [walletResult, setWalletResult] = useState<WalletExecutionResult | null>(null);
+  const [walletInfo, setWalletInfo] = useState<WalletInfo | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => getAuditLogs());
+
+  useEffect(() => {
+    walletAdapter.getWalletInfo().then(setWalletInfo);
+  }, []);
 
   function analyzeRequest() {
     const nextRequest = parseIntent(input);
@@ -34,7 +47,7 @@ export default function Home() {
     if (!request || !decision) return;
 
     setIsExecuting(true);
-    const result = await executeMockTransaction(request);
+    const result = await walletAdapter.executePayment({ request });
     setWalletResult(result);
     setIsExecuting(false);
 
@@ -72,7 +85,7 @@ export default function Home() {
           <div className="grid grid-cols-3 gap-2 text-sm">
             <Metric label="Budget" value={`$${walletPolicy.maxAmount.toFixed(0)}`} />
             <Metric label="Trusted" value={String(walletPolicy.trustedRecipients.length)} />
-            <Metric label="Mode" value="Mock" />
+            <Metric label="Mode" value={appConfig.walletMode.toUpperCase()} />
           </div>
         </div>
       </section>
@@ -91,7 +104,10 @@ export default function Home() {
                 <Fact label="Recipient" value={request.recipient || "none"} mono />
                 <Fact label="Spender" value={request.spender || "none"} mono />
                 <Fact label="Chain ID" value={String(request.chainId)} />
-                <Fact label="Unlimited approval" value={request.isUnlimitedApproval ? "true" : "false"} />
+                <Fact
+                  label="Unlimited approval"
+                  value={request.isUnlimitedApproval ? "true" : "false"}
+                />
               </dl>
             </div>
           ) : null}
@@ -118,6 +134,18 @@ export default function Home() {
         </Panel>
 
         <Panel title="Audit Trail" kicker="local evidence">
+          {walletInfo ? (
+            <div className="mb-4 rounded-md border border-slate-700 bg-slate-950 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                Wallet adapter
+              </p>
+              <dl className="mt-3 grid gap-3 text-sm">
+                <Fact label="Name" value={walletInfo.name} />
+                <Fact label="Address" value={walletInfo.address} mono />
+                <Fact label="Connected" value={walletInfo.isConnected ? "true" : "false"} />
+              </dl>
+            </div>
+          ) : null}
           <AuditTimeline
             logs={auditLogs}
             onClear={() => {
@@ -128,8 +156,8 @@ export default function Home() {
           <div className="mt-5 rounded-md border border-cyan-400/20 bg-cyan-400/10 p-4 text-sm text-cyan-50">
             <p className="font-semibold">Execution boundary</p>
             <p className="mt-2 leading-6 text-cyan-100/80">
-              Mock only. No Safe, ERC-4337, 1inch, Uniswap, GPT API, private key, or onchain
-              settlement is connected.
+              Execution goes through a WalletAdapter. Mock mode stays local; CAW mode is an
+              integration placeholder until real credentials and review gates are configured.
             </p>
           </div>
         </Panel>
@@ -191,4 +219,3 @@ function EmptyState({ text }: { text: string }) {
     </div>
   );
 }
-

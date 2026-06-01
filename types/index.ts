@@ -30,3 +30,28 @@ export type AuditLog = {
   riskLevel: PolicyDecision["riskLevel"];
   reason: string;
 };
+
+export type WalletMode = "mock" | "caw";
+
+export type WalletInfo = {
+  mode: WalletMode;
+  name: string;
+  chainId: number;
+  address: string;
+  isConnected: boolean;
+};
+
+export type WalletExecutionResult = {
+  success: boolean;
+  txHash: string;
+  status: "pending" | "confirmed" | "failed";
+  walletMode: WalletMode;
+  message: string;
+};
+
+export type TransactionStatus = {
+  txHash: string;
+  status: WalletExecutionResult["status"];
+  confirmations: number;
+  updatedAt: number;
+};

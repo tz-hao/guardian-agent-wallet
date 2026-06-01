@@ -1,5 +1,4 @@
-import type { MockTransactionResult } from "@/lib/mockWallet";
-import type { PolicyDecision } from "@/types";
+import type { PolicyDecision, WalletExecutionResult } from "@/types";
 
 export function ConfirmPanel({
   decision,
@@ -10,7 +9,7 @@ export function ConfirmPanel({
   onReject,
 }: {
   decision: PolicyDecision;
-  walletResult: MockTransactionResult | null;
+  walletResult: WalletExecutionResult | null;
   isExecuting: boolean;
   onExecute: () => void;
   onConfirm: () => void;
@@ -66,13 +65,12 @@ export function ConfirmPanel({
 
 function messageFor(
   decision: PolicyDecision,
-  walletResult: MockTransactionResult | null,
+  walletResult: WalletExecutionResult | null,
   isExecuting: boolean,
 ) {
-  if (isExecuting) return "Mock wallet is preparing a transaction result.";
-  if (walletResult?.success) return "Execution recorded in the mock wallet.";
+  if (isExecuting) return "Wallet adapter is preparing a transaction result.";
+  if (walletResult?.success) return walletResult.message;
   if (decision.decision === "ALLOW") return "Low-risk request can be executed automatically.";
   if (decision.decision === "CONFIRM") return "Human confirmation is required before execution.";
   return "Policy denied this request.";
 }
-

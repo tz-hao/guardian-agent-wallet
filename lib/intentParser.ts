@@ -4,10 +4,14 @@ const DEFAULT_CHAIN_ID = 8453;
 const ZERO_ADDRESS = "";
 const TRUSTED_SERVICE = "x402-service";
 
+const BUY = "\u4e70";
+const TRANSFER = "\u8f6c\u8d26";
+const TO = "\u7ed9";
+
 export const samplePrompts = [
-  "买 10 USDC 的 ETH",
+  `${BUY} 10 USDC \u7684 ETH`,
   "buy 10 USDC ETH",
-  "转账 20 USDC 给 0x123",
+  `${TRANSFER} 20 USDC ${TO} 0x123`,
   "send 20 USDC to 0x123",
   "send 20 USDC to 0xBAD123",
   "approve unlimited USDC",
@@ -34,34 +38,34 @@ export function parseIntent(input: string): PaymentRequest {
 }
 
 function parseAction(input: string): PaymentRequest["action"] {
-  if (input.includes("买") || input.includes("buy")) return "swap";
-  if (input.includes("转账") || input.includes("send")) return "transfer";
+  if (input.includes(BUY) || input.includes("buy")) return "swap";
+  if (input.includes(TRANSFER) || input.includes("send")) return "transfer";
   if (input.includes("approve")) return "approve";
   return "unknown";
 }
 
 function parseAmount(input: string) {
-  const match = input.match(/(?:^|\s)(\d+(?:\.\d+)?)(?=\s*[A-Za-z])/);
+  const match = input.match(/(\d+(?:\.\d+)?)\s*(USDC|USDT|ETH|DAI|WETH)/i);
   return match ? Number(match[1]) : 0;
 }
 
 function parseToken(input: string) {
   const match = input.match(/\b(USDC|USDT|ETH|DAI|WETH)\b/i);
-  return match ? match[1].toUpperCase() : "";
+  return match ? match[1].toUpperCase() : "USDC";
 }
 
 function parseRecipient(input: string) {
-  const match = input.match(/0x[a-fA-F0-9]+/);
-  return match ? match[0] : "";
+  const match = input.match(/0x[a-zA-Z0-9]+/);
+  return match ? match[0] : ZERO_ADDRESS;
 }
 
 function parseSpender(input: string) {
-  const match = input.match(/(?:to|给)\s+(0x[a-fA-F0-9]+)/i);
-  return match ? match[1] : "";
+  const match = input.match(new RegExp(`(?:to|${TO})\\s+(0x[a-zA-Z0-9]+)`, "i"));
+  return match ? match[1] : ZERO_ADDRESS;
 }
 
 function createId() {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID();
   }
 
