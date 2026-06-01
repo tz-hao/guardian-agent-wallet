@@ -1,100 +1,257 @@
 import type { PaymentRequest, PolicyDecision } from "@/types";
 
-const trustedRecipients = ["0x123", "0xSAFE", "x402-service"];
+type PolicyDecisionValue = PolicyDecision["decision"];
+type RiskLevel = PolicyDecision["riskLevel"];
 
-export const walletPolicy = {
-  maxAmount: 50,
-  trustedRecipients,
+export type PolicyContext = {
+  dailySpent: number;
+  dailyBudgetLimit: number;
+  singlePaymentLimit: number;
+  trustedRecipients: string[];
+  allowedTokens: string[];
+  timeWindow: {
+    startHourUtc: number;
+    endHourUtc: number;
+  };
 };
 
-type PolicyRule = {
+export type PolicyRuleResult = {
   id: string;
-  matches: (request: PaymentRequest) => boolean;
-  decision: Omit<PolicyDecision, "rulesTriggered">;
+  decision: Exclude<PolicyDecisionValue, "ALLOW">;
+  riskLevel: Exclude<RiskLevel, "LOW">;
+  score: number;
+  reason: string;
 };
 
-const rules: PolicyRule[] = [
-  {
-    id: "unlimited_approval",
-    matches: (request) => request.action === "approve" && request.isUnlimitedApproval,
-    decision: {
+export interface PolicyRule {
+  id: string;
+  label: string;
+  evaluate(request: PaymentRequest, context: PolicyContext): PolicyRuleResult | null;
+}
+
+const trustedRecipients = ["0x123", "0xSAFE", "x402-service"];
+const allowedTokens = ["USDC", "USDT", "ETH", "DAI", "WETH"];
+
+export const walletPolicy: PolicyContext = {
+  dailySpent: 0,
+  dailyBudgetLimit: 300,
+  singlePaymentLimit: 50,
+  trustedRecipients,
+  allowedTokens,
+  timeWindow: {
+    startHourUtc: 0,
+    endHourUtc: 24,
+  },
+};
+
+export const UnknownActionPolicy: PolicyRule = {
+  id: "unknown_action",
+  label: "Known action required",
+  evaluate(request) {
+    if (request.action !== "unknown") return null;
+
+    return {
+      id: this.id,
+      decision: "CONFIRM",
+      riskLevel: "MEDIUM",
+      score: 50,
+      reason: "The agent request could not be parsed into a supported wallet action.",
+    };
+  },
+};
+
+export const DailyBudgetPolicy: PolicyRule = {
+  id: "daily_budget",
+  label: "Daily budget",
+  evaluate(request, context) {
+    if (context.dailySpent + request.amount <= context.dailyBudgetLimit) return null;
+
+    return {
+      id: this.id,
+      decision: "CONFIRM",
+      riskLevel: "HIGH",
+      score: 80,
+      reason: `This request would exceed the daily budget of ${context.dailyBudgetLimit} ${request.token}.`,
+    };
+  },
+};
+
+export const SinglePaymentLimitPolicy: PolicyRule = {
+  id: "single_payment_limit",
+  label: "Single payment limit",
+  evaluate(request, context) {
+    if (request.amount <= context.singlePaymentLimit) return null;
+
+    return {
+      id: this.id,
+      decision: "CONFIRM",
+      riskLevel: "HIGH",
+      score: 75,
+      reason: `The amount is above the single payment limit of ${context.singlePaymentLimit} ${request.token}.`,
+    };
+  },
+};
+
+export const TrustedRecipientPolicy: PolicyRule = {
+  id: "trusted_recipient",
+  label: "Trusted recipient",
+  evaluate(request, context) {
+    if (request.action === "transfer" && request.recipient.trim() === "") {
+      return {
+        id: "missing_recipient",
+        decision: "CONFIRM",
+        riskLevel: "MEDIUM",
+        score: 55,
+        reason: "The transfer recipient is missing and must be reviewed before execution.",
+      };
+    }
+
+    if (startsWithBadAddress(request.recipient)) {
+      return {
+        id: "suspicious_recipient",
+        decision: "CONFIRM",
+        riskLevel: "HIGH",
+        score: 85,
+        reason: "The recipient matches a suspicious address pattern.",
+      };
+    }
+
+    if (context.trustedRecipients.includes(request.recipient)) return null;
+
+    return {
+      id: this.id,
+      decision: "CONFIRM",
+      riskLevel: "MEDIUM",
+      score: 60,
+      reason: "The recipient is not in the trusted recipient list.",
+    };
+  },
+};
+
+export const UnlimitedApprovalPolicy: PolicyRule = {
+  id: "unlimited_approval",
+  label: "Unlimited approval",
+  evaluate(request) {
+    if (request.action !== "approve" || !request.isUnlimitedApproval) return null;
+
+    return {
+      id: this.id,
       decision: "DENY",
       riskLevel: "HIGH",
-      reason: "Unlimited approval is dangerous",
-    },
+      score: 100,
+      reason: "Unlimited token approval is blocked because it can drain the wallet later.",
+    };
   },
-  {
-    id: "suspicious_recipient",
-    matches: (request) => startsWithBadAddress(request.recipient),
-    decision: {
-      decision: "CONFIRM",
+};
+
+export const AllowedTokenPolicy: PolicyRule = {
+  id: "allowed_token",
+  label: "Allowed token",
+  evaluate(request, context) {
+    if (context.allowedTokens.includes(request.token)) return null;
+
+    return {
+      id: this.id,
+      decision: "DENY",
       riskLevel: "HIGH",
-      reason: "Unknown or suspicious recipient",
-    },
+      score: 90,
+      reason: `${request.token} is not approved for agent execution.`,
+    };
   },
-  {
-    id: "missing_transfer_recipient",
-    matches: (request) => request.action === "transfer" && request.recipient.trim() === "",
-    decision: {
+};
+
+export const TimeWindowPolicy: PolicyRule = {
+  id: "time_window",
+  label: "Execution time window",
+  evaluate(request, context) {
+    const hour = new Date(request.timestamp).getUTCHours();
+    const { startHourUtc, endHourUtc } = context.timeWindow;
+    const insideWindow =
+      startHourUtc <= endHourUtc
+        ? hour >= startHourUtc && hour < endHourUtc
+        : hour >= startHourUtc || hour < endHourUtc;
+
+    if (insideWindow) return null;
+
+    return {
+      id: this.id,
       decision: "CONFIRM",
       riskLevel: "MEDIUM",
-      reason: "Transfer recipient is missing",
-    },
+      score: 45,
+      reason: `The request was made outside the allowed execution window (${startHourUtc}:00-${endHourUtc}:00 UTC).`,
+    };
   },
-  {
-    id: "amount_exceeds_daily_budget",
-    matches: (request) => request.amount > walletPolicy.maxAmount,
-    decision: {
-      decision: "CONFIRM",
-      riskLevel: "HIGH",
-      reason: "Amount exceeds daily budget",
-    },
-  },
-  {
-    id: "unknown_action",
-    matches: (request) => request.action === "unknown",
-    decision: {
-      decision: "CONFIRM",
-      riskLevel: "MEDIUM",
-      reason: "Unknown action needs review",
-    },
-  },
-  {
-    id: "limited_approval",
-    matches: (request) => request.action === "approve" && !request.isUnlimitedApproval,
-    decision: {
-      decision: "CONFIRM",
-      riskLevel: "MEDIUM",
-      reason: "Token approval needs review",
-    },
-  },
-  {
-    id: "trusted_recipient_low_amount",
-    matches: (request) =>
-      request.amount <= walletPolicy.maxAmount && trustedRecipients.includes(request.recipient),
-    decision: {
-      decision: "ALLOW",
-      riskLevel: "LOW",
-      reason: "Trusted recipient and amount within daily budget",
-    },
-  },
+};
+
+export const defaultPolicyRules: PolicyRule[] = [
+  UnknownActionPolicy,
+  UnlimitedApprovalPolicy,
+  AllowedTokenPolicy,
+  TrustedRecipientPolicy,
+  SinglePaymentLimitPolicy,
+  DailyBudgetPolicy,
+  TimeWindowPolicy,
 ];
 
 export function evaluatePayment(request: PaymentRequest): PolicyDecision {
-  const matched = rules.find((rule) => rule.matches(request));
+  return evaluatePolicies(request);
+}
 
-  if (!matched) {
-    return {
-      decision: "CONFIRM",
-      riskLevel: "MEDIUM",
-      reason: "Recipient is not trusted",
-      rulesTriggered: ["recipient_not_trusted"],
-    };
+export function evaluatePolicies(
+  request: PaymentRequest,
+  context: PolicyContext = walletPolicy,
+  rules: PolicyRule[] = defaultPolicyRules,
+): PolicyDecision {
+  const results = rules
+    .map((rule) => rule.evaluate(request, context))
+    .filter((result): result is PolicyRuleResult => result !== null);
+
+  if (results.length === 0) {
+    return buildDecision({
+      decision: "ALLOW",
+      riskLevel: "LOW",
+      score: 10,
+      reason:
+        "Request is within policy: trusted recipient, allowed token, payment limit, daily budget, and execution window all passed.",
+      triggeredRules: ["all_checks_passed"],
+    });
   }
 
+  const score = Math.min(100, Math.max(...results.map((result) => result.score)));
+  const decision = results.some((result) => result.decision === "DENY") ? "DENY" : "CONFIRM";
+  const riskLevel = score >= 70 ? "HIGH" : score >= 40 ? "MEDIUM" : "LOW";
+  const reason = results.map((result) => result.reason).join(" ");
+  const triggeredRules = results.map((result) => result.id);
+
+  return buildDecision({
+    decision,
+    riskLevel,
+    score,
+    reason,
+    triggeredRules,
+  });
+}
+
+function buildDecision({
+  decision,
+  riskLevel,
+  score,
+  reason,
+  triggeredRules,
+}: {
+  decision: PolicyDecisionValue;
+  riskLevel: RiskLevel;
+  score: number;
+  reason: string;
+  triggeredRules: string[];
+}): PolicyDecision {
   return {
-    ...matched.decision,
-    rulesTriggered: [matched.id],
+    decision,
+    riskLevel,
+    score,
+    reason,
+    triggeredRules,
+    rulesTriggered: triggeredRules,
   };
 }
 

@@ -29,10 +29,10 @@ export function RiskCard({ decision }: { decision: PolicyDecision }) {
       </div>
       <p className="mt-3 text-sm leading-6">{decision.reason}</p>
       <p className="mt-3 text-xs font-semibold uppercase tracking-[0.12em]">
-        Risk level: {decision.riskLevel}
+        Risk level: {decision.riskLevel} / Score: {decision.score}
       </p>
       <div className="mt-4 flex flex-wrap gap-2">
-        {decision.rulesTriggered.map((rule) => (
+        {decision.triggeredRules.map((rule) => (
           <span key={rule} className="rounded-md bg-black/25 px-3 py-2 font-mono text-xs">
             {rule}
           </span>
@@ -41,4 +41,3 @@ export function RiskCard({ decision }: { decision: PolicyDecision }) {
     </div>
   );
 }
-

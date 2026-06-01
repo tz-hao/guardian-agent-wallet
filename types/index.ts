@@ -14,7 +14,9 @@ export type PaymentRequest = {
 export type PolicyDecision = {
   decision: "ALLOW" | "CONFIRM" | "DENY";
   riskLevel: "LOW" | "MEDIUM" | "HIGH";
+  score: number;
   reason: string;
+  triggeredRules: string[];
   rulesTriggered: string[];
 };
 

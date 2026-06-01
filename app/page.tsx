@@ -83,7 +83,7 @@ export default function Home() {
             </p>
           </div>
           <div className="grid grid-cols-3 gap-2 text-sm">
-            <Metric label="Budget" value={`$${walletPolicy.maxAmount.toFixed(0)}`} />
+            <Metric label="Limit" value={`$${walletPolicy.singlePaymentLimit.toFixed(0)}`} />
             <Metric label="Trusted" value={String(walletPolicy.trustedRecipients.length)} />
             <Metric label="Mode" value={appConfig.walletMode.toUpperCase()} />
           </div>
