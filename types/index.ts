@@ -41,7 +41,7 @@ export type RiskAssessment = {
   warnings: string[];
 };
 
-export type AuditLog = {
+export type LegacyAuditLog = {
   id: string;
   timestamp: string;
   rawInput: string;
@@ -52,6 +52,47 @@ export type AuditLog = {
   decision: PolicyDecision["decision"];
   riskLevel: PolicyDecision["riskLevel"];
   reason: string;
+};
+
+export type AuditEventType =
+  | "Intent Parsed"
+  | "Policy Evaluated"
+  | "User Confirmed"
+  | "Transaction Executed";
+
+export type UserConfirmationStatus = "not_required" | "pending" | "confirmed" | "rejected";
+
+export type AuditEvent = {
+  id: string;
+  type: AuditEventType;
+  timestamp: string;
+  title: string;
+  description: string;
+};
+
+export type AuditLog = {
+  id: string;
+  requestId: string;
+  createdAt: string;
+  updatedAt: string;
+  request: PaymentRequest;
+  policyDecision: PolicyDecision;
+  riskScore: number;
+  wallet: WalletInfo | null;
+  txHash: string | null;
+  userConfirmation: UserConfirmationStatus;
+  executionResult: WalletExecutionResult | null;
+  events: AuditEvent[];
+};
+
+export type AuditTimelineItem = {
+  id: string;
+  auditId: string;
+  timestamp: string;
+  title: string;
+  description: string;
+  tone: "info" | "success" | "warning" | "danger";
+  details: string[];
 };
 
 export type WalletMode = "mock" | "caw";

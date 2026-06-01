@@ -6,7 +6,14 @@ import { ChatBox } from "@/components/ChatBox";
 import { ConfirmPanel } from "@/components/ConfirmPanel";
 import { RiskCard } from "@/components/RiskCard";
 import { agentProfiles, getAgentProfile } from "@/lib/agentProfiles";
-import { addAuditLog, clearAuditLogs, createAuditLog, getAuditLogs } from "@/lib/auditLog";
+import {
+  buildAuditTimelineItems,
+  clearAuditLogs,
+  getAuditLogs,
+  recordIntentAndPolicy,
+  recordTransactionExecuted,
+  recordUserConfirmation,
+} from "@/lib/auditLog";
 import { appConfig } from "@/lib/config";
 import { parseIntent } from "@/lib/intentParser";
 import { evaluatePayment } from "@/lib/policyEngine";
@@ -14,6 +21,7 @@ import { getWalletAdapter } from "@/lib/wallets";
 import type {
   AgentProfileId,
   AuditLog,
+  AuditTimelineItem,
   PaymentRequest,
   PolicyDecision,
   WalletExecutionResult,
@@ -32,6 +40,7 @@ export default function Home() {
   const [walletInfo, setWalletInfo] = useState<WalletInfo | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => getAuditLogs());
+  const auditTimelineItems: AuditTimelineItem[] = buildAuditTimelineItems(auditLogs);
 
   useEffect(() => {
     walletAdapter.getWalletInfo().then(setWalletInfo);
@@ -44,29 +53,37 @@ export default function Home() {
     setRequest(nextRequest);
     setDecision(nextDecision);
     setWalletResult(null);
+    recordIntentAndPolicy({
+      request: nextRequest,
+      decision: nextDecision,
+      wallet: walletInfo,
+    });
+    setAuditLogs(getAuditLogs());
   }
 
   async function executeRequest() {
     if (!request || !decision) return;
 
     setIsExecuting(true);
+    if (decision.decision === "CONFIRM") {
+      recordUserConfirmation({ requestId: request.id, confirmed: true });
+    }
     const result = await walletAdapter.executePayment({ request });
     setWalletResult(result);
     setIsExecuting(false);
 
-    const log = createAuditLog(request, decision, result);
-    addAuditLog(log);
+    recordTransactionExecuted({
+      requestId: request.id,
+      wallet: walletInfo,
+      executionResult: result,
+    });
     setAuditLogs(getAuditLogs());
   }
 
   function rejectRequest() {
     if (!request || !decision) return;
 
-    const log = createAuditLog(request, {
-      ...decision,
-      reason: `Rejected by user: ${decision.reason}`,
-    }, null);
-    addAuditLog(log);
+    recordUserConfirmation({ requestId: request.id, confirmed: false });
     setAuditLogs(getAuditLogs());
   }
 
@@ -176,7 +193,7 @@ export default function Home() {
             </div>
           ) : null}
           <AuditTimeline
-            logs={auditLogs}
+            items={auditTimelineItems}
             onClear={() => {
               clearAuditLogs();
               setAuditLogs([]);
