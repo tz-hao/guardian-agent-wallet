@@ -20,6 +20,13 @@ export type PolicyDecision = {
   rulesTriggered: string[];
 };
 
+export type RiskAssessment = {
+  riskScore: number;
+  riskLevel: "LOW" | "MEDIUM" | "HIGH";
+  explanation: string;
+  warnings: string[];
+};
+
 export type AuditLog = {
   id: string;
   timestamp: string;

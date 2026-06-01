@@ -1,4 +1,5 @@
 import type { PaymentRequest, PolicyDecision } from "@/types";
+import { assessRisk } from "@/lib/riskEngine";
 
 type PolicyDecisionValue = PolicyDecision["decision"];
 type RiskLevel = PolicyDecision["riskLevel"];
@@ -202,6 +203,7 @@ export function evaluatePolicies(
   context: PolicyContext = walletPolicy,
   rules: PolicyRule[] = defaultPolicyRules,
 ): PolicyDecision {
+  const risk = assessRisk(request);
   const results = rules
     .map((rule) => rule.evaluate(request, context))
     .filter((result): result is PolicyRuleResult => result !== null);
@@ -209,18 +211,20 @@ export function evaluatePolicies(
   if (results.length === 0) {
     return buildDecision({
       decision: "ALLOW",
-      riskLevel: "LOW",
-      score: 10,
-      reason:
-        "Request is within policy: trusted recipient, allowed token, payment limit, daily budget, and execution window all passed.",
+      riskLevel: risk.riskLevel,
+      score: Math.max(10, risk.riskScore),
+      reason: `${risk.explanation} Request is within policy: trusted recipient, allowed token, payment limit, daily budget, and execution window all passed.`,
       triggeredRules: ["all_checks_passed"],
     });
   }
 
-  const score = Math.min(100, Math.max(...results.map((result) => result.score)));
+  const score = Math.min(
+    100,
+    Math.max(risk.riskScore, ...results.map((result) => result.score)),
+  );
   const decision = results.some((result) => result.decision === "DENY") ? "DENY" : "CONFIRM";
   const riskLevel = score >= 70 ? "HIGH" : score >= 40 ? "MEDIUM" : "LOW";
-  const reason = results.map((result) => result.reason).join(" ");
+  const reason = [risk.explanation, ...results.map((result) => result.reason)].join(" ");
   const triggeredRules = results.map((result) => result.id);
 
   return buildDecision({

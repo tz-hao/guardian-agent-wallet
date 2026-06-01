@@ -73,7 +73,7 @@ describe("policy engine", () => {
 
     assert.equal(decision.decision, "CONFIRM");
     assert.equal(decision.riskLevel, "HIGH");
-    assert.equal(decision.score, 85);
+    assert.equal(decision.score, 95);
     assert.deepEqual(decision.triggeredRules, ["suspicious_recipient"]);
   });
 
