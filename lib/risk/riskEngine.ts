@@ -1,5 +1,5 @@
 import type { PaymentRequest, RiskAssessment } from "@/types";
-import { isAllowedToken, isSuspiciousAddress, isTrustedRecipient } from "@/lib/securityConfig";
+import { isAllowedToken, isSuspiciousAddress, isTrustedRecipient } from "@/lib/policy/securityConfig";
 
 export function assessRisk(request: PaymentRequest): RiskAssessment {
   const factors = [

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { assessRisk } from "../lib/riskEngine";
+import { assessRisk } from "../lib/risk/riskEngine";
 import type { PaymentRequest } from "../types";
 
 function request(overrides: Partial<PaymentRequest> = {}): PaymentRequest {

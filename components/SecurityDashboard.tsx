@@ -22,7 +22,7 @@ import { AuditTimeline } from "@/components/AuditTimeline";
 import { ChatBox } from "@/components/ChatBox";
 import { ConfirmPanel } from "@/components/ConfirmPanel";
 import { RiskCard } from "@/components/RiskCard";
-import { agentProfiles, getAgentProfile } from "@/lib/agentProfiles";
+import { agentProfiles, getAgentProfile } from "@/lib/policy/agentProfiles";
 import {
   buildAuditTimelineItems,
   clearAuditLogs,
@@ -30,10 +30,9 @@ import {
   recordIntentAndPolicy,
   recordTransactionExecuted,
   recordUserConfirmation,
-} from "@/lib/auditLog";
-import { appConfig } from "@/lib/config";
-import { parseIntent } from "@/lib/intentParser";
-import { evaluatePayment } from "@/lib/policyEngine";
+} from "@/lib/audit/auditLog";
+import { parseIntent } from "@/lib/intent/intentParser";
+import { evaluatePayment } from "@/lib/policy/policyEngine";
 import { getWalletAdapter } from "@/lib/wallets";
 import type {
   AgentProfileId,
@@ -206,7 +205,7 @@ export function SecurityDashboard({ view }: { view: DashboardView }) {
           <SummaryCard
             icon={<Wallet className="h-5 w-5" />}
             label="Wallet"
-            value={appConfig.walletMode.toUpperCase()}
+            value={(walletInfo?.mode ?? walletAdapter.mode).toUpperCase()}
             detail={walletInfo?.isConnected ? walletInfo.address : "Adapter ready"}
           />
         </div>

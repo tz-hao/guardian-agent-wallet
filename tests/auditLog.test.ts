@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { buildAuditTimelineItems, createAuditLog } from "../lib/auditLog";
+import { buildAuditTimelineItems, createAuditLog } from "../lib/audit/auditLog";
 import type { PaymentRequest, PolicyDecision, WalletExecutionResult, WalletInfo } from "../types";
 
 const request: PaymentRequest = {

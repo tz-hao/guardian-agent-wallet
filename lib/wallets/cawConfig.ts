@@ -21,3 +21,7 @@ export const appConfig: AppConfig = {
   cawApiBaseUrl: process.env.NEXT_PUBLIC_CAW_API_BASE_URL || "",
   cawWalletId: process.env.NEXT_PUBLIC_CAW_WALLET_ID || "",
 };
+
+export function hasCawCredentials() {
+  return Boolean(appConfig.cawApiBaseUrl && appConfig.cawWalletId);
+}

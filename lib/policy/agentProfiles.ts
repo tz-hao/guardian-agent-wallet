@@ -1,5 +1,5 @@
 import type { AgentProfile, AgentProfileId, PaymentRequest } from "@/types";
-import { ALLOWED_TOKENS, TRUSTED_RECIPIENTS } from "@/lib/securityConfig";
+import { ALLOWED_TOKENS, TRUSTED_RECIPIENTS } from "@/lib/policy/securityConfig";
 
 export const agentProfiles: Record<AgentProfileId, AgentProfile> = {
   ResearchAgent: {

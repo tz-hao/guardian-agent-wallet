@@ -54,8 +54,8 @@ The policy engine evaluates each request against the selected profile's allowed 
 ## Extension Points
 
 - `lib/wallets/cawWallet.ts`: replace the placeholder response with CAW API or SDK calls.
-- `lib/policyEngine.ts`: add CAW-specific policy checks such as wallet scopes, session limits, spending windows, or allowlisted counterparties.
-- `lib/auditLog.ts`: extend local audit events into server-side evidence, signed receipts, or settlement records.
+- `lib/policy/policyEngine.ts`: add CAW-specific policy checks such as wallet scopes, session limits, spending windows, or allowlisted counterparties.
+- `lib/audit/auditLog.ts`: extend local audit events into server-side evidence, signed receipts, or settlement records.
 - `types/index.ts`: add protocol-specific request and receipt fields as the MVP connects to real CAW execution.
 
 ## Safety Boundary

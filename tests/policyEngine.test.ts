@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { agentProfiles } from "../lib/agentProfiles";
+import { agentProfiles } from "../lib/policy/agentProfiles";
 import {
   createPolicyContext,
   evaluatePayment,
   evaluatePolicies,
   walletPolicy,
   type PolicyContext,
-} from "../lib/policyEngine";
+} from "../lib/policy/policyEngine";
 import type { PaymentRequest } from "../types";
 
 function request(overrides: Partial<PaymentRequest> = {}): PaymentRequest {
