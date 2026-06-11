@@ -15,6 +15,8 @@ function setEnv(overrides: NodeJS.ProcessEnv) {
     CAW_RECIPIENT_ONCHAIN_ANALYTICS: process.env.CAW_RECIPIENT_ONCHAIN_ANALYTICS,
     CAW_RECIPIENT_RESEARCH_FEED: process.env.CAW_RECIPIENT_RESEARCH_FEED,
     CAW_DESTINATION: process.env.CAW_DESTINATION,
+    CAW_NETWORK: process.env.CAW_NETWORK,
+    CAW_TOKEN_ID: process.env.CAW_TOKEN_ID,
   };
 
   process.env.AGENT_WALLET_API_URL = overrides.AGENT_WALLET_API_URL;
@@ -27,6 +29,8 @@ function setEnv(overrides: NodeJS.ProcessEnv) {
   process.env.CAW_RECIPIENT_ONCHAIN_ANALYTICS = overrides.CAW_RECIPIENT_ONCHAIN_ANALYTICS;
   process.env.CAW_RECIPIENT_RESEARCH_FEED = overrides.CAW_RECIPIENT_RESEARCH_FEED;
   process.env.CAW_DESTINATION = overrides.CAW_DESTINATION;
+  process.env.CAW_NETWORK = overrides.CAW_NETWORK;
+  process.env.CAW_TOKEN_ID = overrides.CAW_TOKEN_ID;
 
   return () => {
     process.env.AGENT_WALLET_API_URL = previous.AGENT_WALLET_API_URL;
@@ -39,6 +43,8 @@ function setEnv(overrides: NodeJS.ProcessEnv) {
     process.env.CAW_RECIPIENT_ONCHAIN_ANALYTICS = previous.CAW_RECIPIENT_ONCHAIN_ANALYTICS;
     process.env.CAW_RECIPIENT_RESEARCH_FEED = previous.CAW_RECIPIENT_RESEARCH_FEED;
     process.env.CAW_DESTINATION = previous.CAW_DESTINATION;
+    process.env.CAW_NETWORK = previous.CAW_NETWORK;
+    process.env.CAW_TOKEN_ID = previous.CAW_TOKEN_ID;
   };
 }
 
@@ -70,6 +76,8 @@ describe("CAW integration", () => {
       CAW_RECIPIENT_ONCHAIN_ANALYTICS: "",
       CAW_RECIPIENT_RESEARCH_FEED: "",
       CAW_DESTINATION: "",
+      CAW_NETWORK: "SETH",
+      CAW_TOKEN_ID: "SETH",
       CAW_MOCK_MODE: "",
     });
 
@@ -96,6 +104,8 @@ describe("CAW integration", () => {
       CAW_RECIPIENT_ONCHAIN_ANALYTICS: "",
       CAW_RECIPIENT_RESEARCH_FEED: "",
       CAW_DESTINATION: "",
+      CAW_NETWORK: "SETH",
+      CAW_TOKEN_ID: "SETH",
       CAW_MOCK_MODE: "",
     });
 
@@ -126,6 +136,54 @@ describe("CAW integration", () => {
     }
   });
 
+  it("polls CAW transaction record by request id when transfer response has no tx hash yet", async () => {
+    const restore = setEnv({
+      AGENT_WALLET_API_URL: "https://api.agenticwallet.cobo.com",
+      AGENT_WALLET_API_KEY: "test-key",
+      AGENT_WALLET_WALLET_ID: "wallet-uuid",
+      AGENT_WALLET_PACT_ID: "pact-uuid",
+      CAW_RECIPIENT_DATA_API: "",
+      CAW_RECIPIENT_AI_INFERENCE: "",
+      CAW_RECIPIENT_ONCHAIN_ANALYTICS: "",
+      CAW_RECIPIENT_RESEARCH_FEED: "",
+      CAW_DESTINATION: "",
+      CAW_NETWORK: "SETH",
+      CAW_TOKEN_ID: "SETH",
+      CAW_MOCK_MODE: "",
+    });
+
+    try {
+      const result = await executeCawPayment(request(), {
+        getWalletAddress: async () => "0x1111111111111111111111111111111111111111",
+        sleep: async () => undefined,
+        transferTokens: async (_walletId, body) => ({
+          success: true,
+          result: {
+            id: "tx-receipt-poll",
+            request_id: body.request_id,
+            status: 300,
+            status_display: "Processing",
+          },
+        }),
+        getTransactionRecordByRequestId: async (_walletId, requestId) => ({
+          id: "record-1",
+          request_id: requestId,
+          status: 300,
+          status_display: "Broadcasting",
+          tx_hash: "0xPOLLEDHASH",
+        }),
+      });
+
+      assert.equal(result.success, true);
+      assert.equal(result.txHash, "0xPOLLEDHASH");
+      assert.equal(result.explorerUrl, "https://sepolia.etherscan.io/tx/0xPOLLEDHASH");
+      assert.equal(result.transactionRecordId, "record-1");
+      assert.equal(result.cawStatus, "Processing");
+    } finally {
+      restore();
+    }
+  });
+
   it("resolves trusted recipient aliases before CAW transfer", async () => {
     const restore = setEnv({
       AGENT_WALLET_API_URL: "https://api.agenticwallet.cobo.com",
@@ -137,6 +195,8 @@ describe("CAW integration", () => {
       CAW_RECIPIENT_ONCHAIN_ANALYTICS: "",
       CAW_RECIPIENT_RESEARCH_FEED: "",
       CAW_DESTINATION: "",
+      CAW_NETWORK: "SETH",
+      CAW_TOKEN_ID: "SETH",
       CAW_MOCK_MODE: "",
     });
 
@@ -179,6 +239,8 @@ describe("CAW integration", () => {
       CAW_RECIPIENT_ONCHAIN_ANALYTICS: "",
       CAW_RECIPIENT_RESEARCH_FEED: "",
       CAW_DESTINATION: "",
+      CAW_NETWORK: "SETH",
+      CAW_TOKEN_ID: "SETH",
       CAW_MOCK_MODE: "",
     });
 
@@ -204,6 +266,8 @@ describe("CAW integration", () => {
       CAW_RECIPIENT_ONCHAIN_ANALYTICS: "",
       CAW_RECIPIENT_RESEARCH_FEED: "",
       CAW_DESTINATION: "",
+      CAW_NETWORK: "SETH",
+      CAW_TOKEN_ID: "SETH",
       CAW_MOCK_MODE: "true",
     });
 
@@ -229,6 +293,8 @@ describe("CAW integration", () => {
       CAW_RECIPIENT_ONCHAIN_ANALYTICS: "",
       CAW_RECIPIENT_RESEARCH_FEED: "",
       CAW_DESTINATION: "",
+      CAW_NETWORK: "SETH",
+      CAW_TOKEN_ID: "SETH",
       CAW_MOCK_MODE: "",
     });
 
@@ -255,6 +321,8 @@ describe("CAW integration", () => {
       CAW_RECIPIENT_ONCHAIN_ANALYTICS: "",
       CAW_RECIPIENT_RESEARCH_FEED: "",
       CAW_DESTINATION: "",
+      CAW_NETWORK: "SETH",
+      CAW_TOKEN_ID: "SETH",
       CAW_MOCK_MODE: "",
     });
 
@@ -279,6 +347,149 @@ describe("CAW integration", () => {
       assert.match(result.message, /422/);
       assert.match(result.message, /token_id is invalid/);
       assert.doesNotMatch(result.message, /test-key/);
+    } finally {
+      restore();
+    }
+  });
+
+  it("submits resolved EVM address and string amount instead of the demo alias", async () => {
+    const restore = setEnv({
+      AGENT_WALLET_API_URL: "https://api.agenticwallet.cobo.com",
+      AGENT_WALLET_API_KEY: "owner-key",
+      AGENT_WALLET_WALLET_ID: "wallet-uuid",
+      AGENT_WALLET_PACT_ID: "pact-uuid",
+      CAW_RECIPIENT_DATA_API: "0x24870681a481856b69D85D41C6f2401575228861",
+      CAW_RECIPIENT_AI_INFERENCE: "",
+      CAW_RECIPIENT_ONCHAIN_ANALYTICS: "",
+      CAW_RECIPIENT_RESEARCH_FEED: "",
+      CAW_DESTINATION: "",
+      CAW_NETWORK: "SETH",
+      CAW_TOKEN_ID: "SETH",
+      CAW_MOCK_MODE: "",
+    });
+
+    try {
+      let submittedBody: Record<string, unknown> | null = null;
+      const result = await executeCawPayment(request({ recipient: "data-api-provider" }), {
+        getWalletAddress: async () => "0x1111111111111111111111111111111111111111",
+        getPactApiKey: async () => "pact-scoped-key",
+        transferTokens: async (_walletId, body) => {
+          submittedBody = body;
+
+          return {
+            success: true,
+            result: {
+              id: "tx-receipt-3",
+              request_id: body.request_id,
+              status: 300,
+            },
+          };
+        },
+      });
+
+      assert.equal(submittedBody?.dst_addr, "0x24870681a481856b69D85D41C6f2401575228861");
+      assert.equal(submittedBody?.src_addr, "0x1111111111111111111111111111111111111111");
+      assert.equal("dst_address" in (submittedBody || {}), false);
+      assert.notEqual(submittedBody?.dst_addr, "data-api-provider");
+      assert.equal(submittedBody?.amount, "0.001");
+      assert.equal(typeof submittedBody?.amount, "string");
+      assert.equal(submittedBody?.token_id, "SETH");
+      assert.equal(submittedBody?.chain_id, "SETH");
+      assert.match(String(submittedBody?.request_id), /^guardian-caw-caw-test-request/);
+      assert.equal(result.resolvedRecipientAddress, "0x24870681a481856b69D85D41C6f2401575228861");
+    } finally {
+      restore();
+    }
+  });
+
+  it("returns CAW payload preview on SDK validation failure", async () => {
+    const restore = setEnv({
+      AGENT_WALLET_API_URL: "https://api.agenticwallet.cobo.com",
+      AGENT_WALLET_API_KEY: "owner-key",
+      AGENT_WALLET_WALLET_ID: "wallet-uuid",
+      AGENT_WALLET_PACT_ID: "pact-uuid",
+      CAW_RECIPIENT_DATA_API: "0x24870681a481856b69D85D41C6f2401575228861",
+      CAW_RECIPIENT_AI_INFERENCE: "",
+      CAW_RECIPIENT_ONCHAIN_ANALYTICS: "",
+      CAW_RECIPIENT_RESEARCH_FEED: "",
+      CAW_DESTINATION: "",
+      CAW_NETWORK: "SETH",
+      CAW_TOKEN_ID: "SETH",
+      CAW_MOCK_MODE: "",
+    });
+
+    try {
+      const result = await executeCawPayment(request({ recipient: "data-api-provider" }), {
+        getWalletAddress: async () => "0x1111111111111111111111111111111111111111",
+        getPactApiKey: async () => "pact-scoped-key",
+        transferTokens: async () => {
+          throw {
+            response: {
+              status: 422,
+              body: {
+                error: {
+                  code: "policy_denied",
+                  reason: { dst_addr: "recipient blocked by pact" },
+                  details: { allowed_recipients: ["0x24870681a481856b69D85D41C6f2401575228861"] },
+                },
+                suggestion: "Use an approved recipient.",
+              },
+            },
+          };
+        },
+      });
+
+      assert.equal(result.success, false);
+      assert.equal(result.errorCode, "caw_sdk_validation_error");
+      assert.equal(result.cawPayloadPreview?.dst_addr, "0x24870681a481856b69D85D41C6f2401575228861");
+      assert.equal(result.cawPayloadPreview?.src_addr, "0x1111111111111111111111111111111111111111");
+      assert.equal("dst_address" in (result.cawPayloadPreview || {}), false);
+      assert.equal(result.cawPayloadPreview?.amount, "0.001");
+      assert.equal(result.cawError?.safeDetails?.cawCode, "policy_denied");
+      assert.doesNotMatch(result.message, /\[object Object\]/);
+    } finally {
+      restore();
+    }
+  });
+
+  it("surfaces missing pact api key errors without exposing credentials", async () => {
+    const restore = setEnv({
+      AGENT_WALLET_API_URL: "https://api.agenticwallet.cobo.com",
+      AGENT_WALLET_API_KEY: "server-only-key",
+      AGENT_WALLET_WALLET_ID: "wallet-uuid",
+      AGENT_WALLET_PACT_ID: "pact-uuid",
+      CAW_RECIPIENT_DATA_API: "0x24870681a481856b69D85D41C6f2401575228861",
+      CAW_RECIPIENT_AI_INFERENCE: "",
+      CAW_RECIPIENT_ONCHAIN_ANALYTICS: "",
+      CAW_RECIPIENT_RESEARCH_FEED: "",
+      CAW_DESTINATION: "",
+      CAW_NETWORK: "SETH",
+      CAW_TOKEN_ID: "SETH",
+      CAW_MOCK_MODE: "",
+    });
+
+    try {
+      const result = await executeCawPayment(request({ recipient: "data-api-provider" }), {
+        getWalletAddress: async () => "0x1111111111111111111111111111111111111111",
+        transferTokens: async () => {
+          throw {
+            status: 403,
+            code: "missing_pact_api_key",
+            reason: "Active Pact did not return a pact-scoped API key for transaction execution.",
+            suggestion: "Create or approve an active Pact with can_transfer permission.",
+            details: {
+              required_permission: "can_transfer",
+            },
+          };
+        },
+      });
+
+      assert.equal(result.success, false);
+      assert.equal(result.errorCode, "caw_sdk_validation_error");
+      assert.equal(result.cawError?.status, 403);
+      assert.equal(result.cawError?.code, "missing_pact_api_key");
+      assert.match(result.message, /pact-scoped API key/i);
+      assert.doesNotMatch(result.message, /server-only-key/);
     } finally {
       restore();
     }

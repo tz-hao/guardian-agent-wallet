@@ -11,6 +11,8 @@ export type CawServerConfig = {
   apiKey: string;
   walletId: string;
   pactId: string;
+  network: string;
+  tokenId: string;
   mockMode: boolean;
 };
 
@@ -32,6 +34,8 @@ export function getCawServerConfig(): CawServerConfig {
     apiKey: process.env.AGENT_WALLET_API_KEY || "",
     walletId: process.env.AGENT_WALLET_WALLET_ID || "",
     pactId: process.env.AGENT_WALLET_PACT_ID || "",
+    network: process.env.CAW_NETWORK || "SETH",
+    tokenId: process.env.CAW_TOKEN_ID || "SETH",
     mockMode: process.env.CAW_MOCK_MODE === "true",
   };
 }

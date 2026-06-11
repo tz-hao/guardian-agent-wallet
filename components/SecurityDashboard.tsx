@@ -61,6 +61,7 @@ export function SecurityDashboard({ view }: { view: DashboardView }) {
   const [walletResult, setWalletResult] = useState<WalletExecutionResult | null>(null);
   const [walletInfo, setWalletInfo] = useState<WalletInfo | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
+  const [isRefreshingTransactionStatus, setIsRefreshingTransactionStatus] = useState(false);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const auditTimelineItems: AuditTimelineItem[] = buildAuditTimelineItems(auditLogs);
   const currentProfile = getAgentProfile(agentProfileId);
@@ -133,6 +134,63 @@ export function SecurityDashboard({ view }: { view: DashboardView }) {
     }
   }
 
+  async function refreshTransactionStatus() {
+    if (!request || !walletResult?.requestId) return;
+
+    setIsRefreshingTransactionStatus(true);
+    try {
+      const response = await fetch("/api/caw/transaction-status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requestId: walletResult.requestId }),
+      });
+      const statusResult = (await response.json()) as {
+        success: boolean;
+        requestId: string;
+        status: WalletExecutionResult["status"];
+        txHash: string;
+        explorerUrl: string;
+        message: string;
+        cawStatus?: string;
+        receiptId?: string;
+        transactionRecordId?: string;
+        safeRecord?: Record<string, unknown>;
+        error?: { message?: string; code?: string; status?: number; safeDetails?: Record<string, unknown> };
+      };
+      const nextResult: WalletExecutionResult = {
+        ...walletResult,
+        success: statusResult.success,
+        status: statusResult.status,
+        txHash: statusResult.txHash,
+        explorerUrl: statusResult.explorerUrl,
+        message: statusResult.message,
+        requestId: statusResult.requestId || walletResult.requestId,
+        receiptId: statusResult.receiptId || walletResult.receiptId,
+        transactionRecordId: statusResult.transactionRecordId || walletResult.transactionRecordId,
+        cawStatus: statusResult.cawStatus || walletResult.cawStatus,
+        safeTransactionRecord: statusResult.safeRecord || walletResult.safeTransactionRecord,
+        cawError: statusResult.error
+          ? {
+              status: statusResult.error.status,
+              code: statusResult.error.code,
+              message: statusResult.error.message || statusResult.message,
+              safeDetails: statusResult.error.safeDetails,
+            }
+          : walletResult.cawError,
+      };
+
+      setWalletResult(nextResult);
+      recordTransactionExecuted({
+        requestId: request.id,
+        wallet: walletInfo,
+        executionResult: nextResult,
+      });
+    } finally {
+      setIsRefreshingTransactionStatus(false);
+      setAuditLogs(getAuditLogs());
+    }
+  }
+
   function rejectRequest() {
     if (!request) return;
 
@@ -187,7 +245,9 @@ export function SecurityDashboard({ view }: { view: DashboardView }) {
                   handleProfileChange={handleProfileChange}
                   walletResult={walletResult}
                   isExecuting={isExecuting}
+                  isRefreshingTransactionStatus={isRefreshingTransactionStatus}
                   executeRequest={executeRequest}
+                  refreshTransactionStatus={refreshTransactionStatus}
                   rejectRequest={rejectRequest}
                   currentProfile={currentProfile}
                   walletInfo={walletInfo}
@@ -209,7 +269,9 @@ export function SecurityDashboard({ view }: { view: DashboardView }) {
                     decision={decision}
                     walletResult={walletResult}
                     isExecuting={isExecuting}
+                    isRefreshingTransactionStatus={isRefreshingTransactionStatus}
                     executeRequest={executeRequest}
+                    refreshTransactionStatus={refreshTransactionStatus}
                     rejectRequest={rejectRequest}
                     currentProfile={currentProfile}
                     walletInfo={walletInfo}
@@ -342,7 +404,9 @@ function DashboardGrid({
   handleProfileChange,
   walletResult,
   isExecuting,
+  isRefreshingTransactionStatus,
   executeRequest,
+  refreshTransactionStatus,
   rejectRequest,
   currentProfile,
   walletInfo,
@@ -357,7 +421,9 @@ function DashboardGrid({
   handleProfileChange: (profileId: AgentProfileId) => void;
   walletResult: WalletExecutionResult | null;
   isExecuting: boolean;
+  isRefreshingTransactionStatus: boolean;
   executeRequest: () => void;
+  refreshTransactionStatus: () => void;
   rejectRequest: () => void;
   currentProfile: (typeof agentProfiles)[AgentProfileId];
   walletInfo: WalletInfo | null;
@@ -378,7 +444,9 @@ function DashboardGrid({
           decision={decision}
           walletResult={walletResult}
           isExecuting={isExecuting}
+          isRefreshingTransactionStatus={isRefreshingTransactionStatus}
           executeRequest={executeRequest}
+          refreshTransactionStatus={refreshTransactionStatus}
           rejectRequest={rejectRequest}
           currentProfile={currentProfile}
           walletInfo={walletInfo}
@@ -426,7 +494,9 @@ function RiskReviewPanel({
   decision,
   walletResult,
   isExecuting,
+  isRefreshingTransactionStatus,
   executeRequest,
+  refreshTransactionStatus,
   rejectRequest,
   currentProfile,
   walletInfo,
@@ -435,7 +505,9 @@ function RiskReviewPanel({
   decision: PolicyDecision | null;
   walletResult: WalletExecutionResult | null;
   isExecuting: boolean;
+  isRefreshingTransactionStatus: boolean;
   executeRequest: () => void;
+  refreshTransactionStatus: () => void;
   rejectRequest: () => void;
   currentProfile: (typeof agentProfiles)[AgentProfileId];
   walletInfo: WalletInfo | null;
@@ -463,6 +535,8 @@ function RiskReviewPanel({
               onExecute={executeRequest}
               onConfirm={executeRequest}
               onReject={rejectRequest}
+              onRefreshTransactionStatus={refreshTransactionStatus}
+              isRefreshingTransactionStatus={isRefreshingTransactionStatus}
             />
           </DashboardCard>
         </>

@@ -17,9 +17,40 @@ export class CawWalletAdapter implements WalletAdapter {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ request }),
     });
-    const data = (await response.json()) as { result: WalletExecutionResult };
+    const data = (await response.json()) as {
+      result?: WalletExecutionResult;
+      error?: {
+        code?: string;
+        status?: number;
+        reason?: string;
+        message?: string;
+        safeDetails?: Record<string, unknown>;
+      };
+      requestPreview?: WalletExecutionResult["cawRequestPreview"];
+      cawPayloadPreview?: WalletExecutionResult["cawPayloadPreview"];
+    };
 
-    return data.result;
+    if (data.result) return data.result;
+
+    return {
+      success: false,
+      txHash: "",
+      status: "failed",
+      walletMode: "caw",
+      executionMode: "real-caw",
+      message: data.error?.message || data.error?.reason || "CAW execution failed.",
+      errorCode: "caw_sdk_validation_error",
+      cawError: data.error
+        ? {
+            status: data.error.status,
+            code: data.error.code,
+            message: data.error.message || data.error.reason || "CAW execution failed.",
+            safeDetails: data.error.safeDetails,
+          }
+        : undefined,
+      cawRequestPreview: data.requestPreview,
+      cawPayloadPreview: data.cawPayloadPreview,
+    };
   }
 
   async getTransactionStatus(txHash: string): Promise<TransactionStatus> {

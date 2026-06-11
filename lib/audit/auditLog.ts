@@ -142,6 +142,8 @@ export function recordTransactionExecuted({
       ...record,
       wallet,
       txHash: executionResult.txHash || null,
+      explorerUrl: executionResult.explorerUrl || null,
+      cawStatus: executionResult.cawStatus || executionResult.status,
       executionResult,
     },
     createAuditEvent({
@@ -172,6 +174,7 @@ export function buildAuditTimelineItems(records: AuditLog[]): AuditTimelineItem[
           ? `Resolved recipient: ${record.executionResult.resolvedRecipientAddress}`
           : "Resolved recipient: pending",
         record.txHash ? `Tx: ${record.txHash}` : `Wallet: ${record.wallet?.name ?? "未执行"}`,
+        record.explorerUrl ? `Explorer: ${record.explorerUrl}` : `CAW status: ${record.cawStatus ?? "pending"}`,
       ],
     })),
   );
@@ -203,6 +206,8 @@ function createAuditRecord({
     riskScore: decision.score,
     wallet,
     txHash,
+    explorerUrl: executionResult?.explorerUrl || null,
+    cawStatus: executionResult?.cawStatus || executionResult?.status || null,
     userConfirmation,
     executionResult,
     events: [

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { normalizeCawError } from "@/lib/wallets/cawError";
 import { executeCawPayment, getCawWalletInfo } from "@/lib/wallets/cawServer";
 import type { PaymentRequest } from "@/types";
 
@@ -32,36 +33,53 @@ export async function POST(request: Request) {
     }
 
     const result = await executeCawPayment(body.request);
-    const status = result.errorCode ? 422 : 200;
+    const status = result.errorCode ? result.cawError?.status || 422 : 200;
 
     return NextResponse.json(
       {
+        success: !result.errorCode,
         result,
         error: result.errorCode
           ? {
-              code: result.errorCode,
+              code: result.cawError?.code || result.errorCode,
+              status,
               reason: result.message,
-              cawRequestPreview: result.cawRequestPreview,
+              message: result.cawError?.message || result.message,
+              safeDetails: result.cawError?.safeDetails,
             }
           : undefined,
+        requestPreview: result.cawRequestPreview,
+        cawPayloadPreview: result.cawPayloadPreview,
       },
       { status },
     );
   } catch (error) {
+    const normalizedError = normalizeCawError(error);
+
     return NextResponse.json(
       {
+        success: false,
         result: {
           success: false,
           txHash: "",
           status: "failed",
           walletMode: "caw",
           executionMode: "real-caw",
-          message: error instanceof Error ? error.message : "CAW execution failed.",
+          message: normalizedError.message,
           errorCode: "caw_sdk_validation_error",
+          cawError: {
+            status: normalizedError.status,
+            code: normalizedError.code || "caw_validation_error",
+            message: normalizedError.message,
+            safeDetails: normalizedError.safeDetails,
+          },
         },
         error: {
-          code: "caw_sdk_validation_error",
-          reason: error instanceof Error ? error.message : "CAW execution failed.",
+          code: normalizedError.code || "caw_validation_error",
+          status: normalizedError.status || 422,
+          reason: normalizedError.message,
+          message: normalizedError.message,
+          safeDetails: normalizedError.safeDetails,
         },
       },
       { status: 422 },

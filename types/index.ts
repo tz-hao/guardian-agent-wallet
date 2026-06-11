@@ -80,6 +80,8 @@ export type AuditLog = {
   riskScore: number;
   wallet: WalletInfo | null;
   txHash: string | null;
+  explorerUrl?: string | null;
+  cawStatus?: string | null;
   userConfirmation: UserConfirmationStatus;
   executionResult: WalletExecutionResult | null;
   events: AuditEvent[];
@@ -127,6 +129,9 @@ export type WalletExecutionResult = {
   requestId?: string;
   receiptId?: string;
   walletAddress?: string;
+  transactionRecordId?: string;
+  explorerUrl?: string;
+  cawStatus?: string;
   executionMode?: "real-caw" | "caw-fallback" | "mock";
   errorCode?:
     | "missing_recipient"
@@ -136,6 +141,12 @@ export type WalletExecutionResult = {
     | "unsupported_token"
     | "unsupported_chain"
     | "caw_sdk_validation_error";
+  cawError?: {
+    status?: number;
+    code?: string;
+    message: string;
+    safeDetails?: Record<string, unknown>;
+  };
   cawRequestPreview?: {
     chainId: string;
     tokenId: string;
@@ -145,12 +156,23 @@ export type WalletExecutionResult = {
     resolvedRecipientAddress?: string;
     recipientIsFallback?: boolean;
     pactIdPresent: boolean;
+    walletIdPresent?: boolean;
+  };
+  cawPayloadPreview?: {
+    pactIdPresent: boolean;
+    src_addr: string;
+    dst_addr: string;
+    tokenId: string;
+    chainId: string;
+    amount: string;
+    requestId: string;
   };
   recipientAlias?: string;
   displayRecipient?: string;
   resolvedRecipientAddress?: string;
   recipientIsFallback?: boolean;
   rawCawResponse?: Record<string, unknown>;
+  safeTransactionRecord?: Record<string, unknown>;
 };
 
 export type TransactionStatus = {

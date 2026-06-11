@@ -1,10 +1,12 @@
-import { Configuration, TransactionsApi, WalletsApi } from "@cobo/agentic-wallet";
+import { Configuration, PactsApi, TransactionRecordsApi, TransactionsApi, WalletsApi } from "@cobo/agentic-wallet";
 import { getCawServerConfig, hasCawCredentials } from "@/lib/wallets/cawConfig";
+import { normalizeCawError } from "@/lib/wallets/cawError";
 import { mockWalletAdapter } from "@/lib/wallets/mockWallet";
 import { getTrustedRecipientRegistry, resolveRecipient, type ResolvedRecipient } from "@/lib/wallets/recipientResolver";
 import type { PaymentRequest, WalletExecutionResult, WalletInfo } from "@/types";
 
 type TransferBody = {
+  src_addr: string;
   dst_addr: string;
   amount: string;
   token_id: string;
@@ -18,7 +20,11 @@ type TransferResponse = {
   result?: {
     id?: string;
     request_id?: string;
+    tx_hash?: string;
     transaction_hash?: string;
+    hash?: string;
+    chain_tx_hash?: string;
+    transactionHash?: string;
     status?: number;
     status_display?: string;
   };
@@ -28,11 +34,13 @@ type TransferResponse = {
 
 type CawServerDeps = {
   getWalletAddress?: (walletId: string) => Promise<string>;
+  getPactApiKey?: (pactId: string) => Promise<string>;
+  getPactApiKeyFromSdk?: (pactId: string) => Promise<string | undefined>;
   transferTokens?: (walletId: string, body: TransferBody) => Promise<TransferResponse>;
+  getTransactionRecordByRequestId?: (walletId: string, requestId: string) => Promise<CawTransactionRecord>;
+  sleep?: (ms: number) => Promise<void>;
 };
 
-const CAW_CHAIN_ID = "SETH";
-const CAW_TOKEN_ID = "SETH";
 const MAX_MVP_SETH_AMOUNT = 0.01;
 
 type CawValidationErrorCode = NonNullable<WalletExecutionResult["errorCode"]>;
@@ -40,6 +48,37 @@ type CawValidationErrorCode = NonNullable<WalletExecutionResult["errorCode"]>;
 type CawValidationResult = {
   code: CawValidationErrorCode;
   message: string;
+};
+
+type CawTransactionRecord = Record<string, unknown> & {
+  id?: string;
+  request_id?: string;
+  status?: number | string;
+  status_display?: string;
+  tx_hash?: string;
+  transaction_hash?: string;
+  hash?: string;
+  chain_tx_hash?: string;
+  transactionHash?: string;
+};
+
+export type CawTransactionStatusResult = {
+  success: boolean;
+  requestId: string;
+  status: WalletExecutionResult["status"];
+  txHash: string;
+  explorerUrl: string;
+  message: string;
+  cawStatus?: string;
+  receiptId?: string;
+  transactionRecordId?: string;
+  safeRecord?: Record<string, unknown>;
+  error?: {
+    status?: number;
+    code?: string;
+    message: string;
+    safeDetails?: Record<string, unknown>;
+  };
 };
 
 export async function getCawWalletInfo(deps: CawServerDeps = {}): Promise<WalletInfo> {
@@ -91,6 +130,8 @@ export async function executeCawPayment(
   const requestPreview = buildCawRequestPreview(request, config, resolvedRecipient);
   logSafeCawDebug("caw.execute.preview", requestPreview, config, "real-caw");
 
+  const chainId = getCawChainId(config);
+  const tokenId = getCawTokenId(request, config);
   const validationError = validateMvpSethTransfer(request, config);
   if (validationError) {
     return {
@@ -121,24 +162,52 @@ export async function executeCawPayment(
   }
 
   const requestId = `guardian-caw-${request.id}`;
+  let walletAddress = "";
+
+  try {
+    walletAddress = await getWalletAddress(config.walletId, deps);
+  } catch (error) {
+    const normalizedError = normalizeCawError(error);
+
+    return {
+      success: false,
+      txHash: "",
+      status: "failed",
+      walletMode: "caw",
+      executionMode: "real-caw",
+      message: `CAW wallet address lookup failed${normalizedError.status ? ` (${normalizedError.status})` : ""}: ${normalizedError.message}`,
+      requestId,
+      errorCode: "caw_sdk_validation_error",
+      cawError: {
+        status: normalizedError.status,
+        code: normalizedError.code || "caw_wallet_address_lookup_error",
+        message: normalizedError.message,
+        safeDetails: normalizedError.safeDetails,
+      },
+      cawRequestPreview: requestPreview,
+      recipientAlias: resolvedRecipient.alias,
+      displayRecipient: resolvedRecipient.displayName,
+      resolvedRecipientAddress: resolvedRecipient.evmAddress,
+      recipientIsFallback: resolvedRecipient.isFallback,
+    };
+  }
+
   const transferBody: TransferBody = {
+    src_addr: walletAddress,
     dst_addr: resolvedRecipient.evmAddress,
     amount: String(request.amount),
-    token_id: CAW_TOKEN_ID,
-    chain_id: CAW_CHAIN_ID,
+    token_id: tokenId,
+    chain_id: chainId,
     request_id: requestId,
     description: `Guardian Agent Wallet MVP transfer for request ${request.id}`,
   };
-  let walletAddress = "";
+  const cawPayloadPreview = buildCawPayloadPreview(transferBody, config);
   let transferResponse: TransferResponse;
 
   try {
-    [walletAddress, transferResponse] = await Promise.all([
-      getWalletAddress(config.walletId, deps),
-      transferTokens(config.walletId, transferBody, deps),
-    ]);
+    transferResponse = await transferTokens(config.walletId, transferBody, deps);
   } catch (error) {
-    const message = formatCawSdkError(error);
+    const normalizedError = normalizeCawError(error);
     logSafeCawDebug("caw.execute.sdk_validation_error", requestPreview, config, "real-caw");
 
     return {
@@ -147,10 +216,17 @@ export async function executeCawPayment(
       status: "failed",
       walletMode: "caw",
       executionMode: "real-caw",
-      message,
+      message: `CAW SDK validation error${normalizedError.status ? ` (${normalizedError.status})` : ""}: ${normalizedError.message}`,
       requestId,
       errorCode: "caw_sdk_validation_error",
+      cawError: {
+        status: normalizedError.status,
+        code: normalizedError.code || "caw_validation_error",
+        message: normalizedError.message,
+        safeDetails: normalizedError.safeDetails,
+      },
       cawRequestPreview: requestPreview,
+      cawPayloadPreview,
       recipientAlias: resolvedRecipient.alias,
       displayRecipient: resolvedRecipient.displayName,
       resolvedRecipientAddress: resolvedRecipient.evmAddress,
@@ -158,26 +234,127 @@ export async function executeCawPayment(
     };
   }
   const result = transferResponse.result;
+  const responseRequestId = result?.request_id || requestId;
+  const immediateTxHash = extractCawTxHash(result);
+  const polledStatus = immediateTxHash
+    ? null
+    : await pollCawTransactionRecordByRequestId(responseRequestId, deps);
+  const txHash = immediateTxHash || polledStatus?.txHash || "";
+  const cawStatus = result?.status_display || polledStatus?.cawStatus;
 
   return {
     success: Boolean(transferResponse.success),
-    txHash: result?.transaction_hash || "",
-    status: mapCawStatus(result?.status),
+    txHash,
+    status: txHash ? mapCawStatus(result?.status) : polledStatus?.status || "pending",
     walletMode: "caw",
     executionMode: "real-caw",
-    message: result?.transaction_hash
+    message: txHash
       ? "Real CAW transfer submitted with on-chain transaction hash."
-      : "Real CAW transfer submitted; transaction hash is not available yet.",
-    requestId: result?.request_id || requestId,
-    receiptId: result?.id,
+      : "CAW request accepted, transaction hash is not available yet.",
+    requestId: responseRequestId,
+    receiptId: result?.id || polledStatus?.receiptId,
+    transactionRecordId: polledStatus?.transactionRecordId || result?.id,
     walletAddress,
+    explorerUrl: buildSepoliaExplorerUrl(txHash),
+    cawStatus,
     cawRequestPreview: requestPreview,
+    cawPayloadPreview,
     recipientAlias: resolvedRecipient.alias,
     displayRecipient: resolvedRecipient.displayName,
     resolvedRecipientAddress: resolvedRecipient.evmAddress,
     recipientIsFallback: resolvedRecipient.isFallback,
     rawCawResponse: transferResponse as Record<string, unknown>,
+    safeTransactionRecord: polledStatus?.safeRecord,
   };
+}
+
+export async function getCawTransactionStatusByRequestId(
+  requestId: string,
+  deps: CawServerDeps = {},
+): Promise<CawTransactionStatusResult> {
+  if (!requestId.trim()) {
+    return {
+      success: false,
+      requestId,
+      status: "failed",
+      txHash: "",
+      explorerUrl: "",
+      message: "Missing requestId.",
+      error: { code: "missing_request_id", message: "Missing requestId." },
+    };
+  }
+
+  try {
+    const record = await getCawTransactionRecordByRequestId(requestId, deps);
+    return buildTransactionStatusResult(requestId, record);
+  } catch (error) {
+    const normalizedError = normalizeCawError(error);
+
+    return {
+      success: false,
+      requestId,
+      status: "failed",
+      txHash: "",
+      explorerUrl: "",
+      message: normalizedError.message,
+      error: {
+        status: normalizedError.status,
+        code: normalizedError.code || "caw_transaction_status_error",
+        message: normalizedError.message,
+        safeDetails: normalizedError.safeDetails,
+      },
+    };
+  }
+}
+
+async function pollCawTransactionRecordByRequestId(
+  requestId: string,
+  deps: CawServerDeps,
+): Promise<CawTransactionStatusResult> {
+  if (deps.transferTokens && !deps.getTransactionRecordByRequestId) {
+    return pendingTransactionStatus(requestId);
+  }
+
+  let lastResult = pendingTransactionStatus(requestId);
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    if (attempt > 0) {
+      await (deps.sleep ? deps.sleep(2000) : sleep(2000));
+    }
+
+    const result = await getCawTransactionStatusByRequestId(requestId, deps);
+    lastResult = result;
+
+    if (result.txHash || result.status === "failed") {
+      return result;
+    }
+  }
+
+  return {
+    ...lastResult,
+    status: lastResult.status === "failed" ? "failed" : "pending",
+    txHash: lastResult.txHash || "",
+    explorerUrl: lastResult.txHash ? lastResult.explorerUrl : "",
+    message: lastResult.txHash
+      ? lastResult.message
+      : "CAW request accepted, transaction hash is not available yet.",
+  };
+}
+
+export async function getCawTransactionRecordByRequestId(
+  requestId: string,
+  deps: CawServerDeps = {},
+): Promise<CawTransactionRecord> {
+  const config = getCawServerConfig();
+
+  if (deps.getTransactionRecordByRequestId) {
+    return deps.getTransactionRecordByRequestId(config.walletId, requestId);
+  }
+
+  const pactApiKey = await getPactApiKey(config.pactId, deps);
+  const recordsApi = new TransactionRecordsApi(new Configuration({ basePath: config.apiUrl, apiKey: pactApiKey }));
+  const response = await recordsApi.getUserTransactionByRequestId(config.walletId, requestId, true);
+
+  return response.data.result as unknown as CawTransactionRecord;
 }
 
 async function getWalletAddress(walletId: string, deps: CawServerDeps) {
@@ -190,7 +367,7 @@ async function getWalletAddress(walletId: string, deps: CawServerDeps) {
   const response = await walletsApi.listWalletAddresses(walletId);
   const addresses = response.data.result ?? [];
   const evmAddress = addresses.find(
-    (address) => address.chain_type === "ETH" || address.compatible_chains?.includes(CAW_CHAIN_ID),
+    (address) => address.chain_type === "ETH" || address.compatible_chains?.includes(getCawChainId()),
   );
 
   return evmAddress?.address || "caw-wallet-address-unavailable";
@@ -202,12 +379,48 @@ async function transferTokens(walletId: string, body: TransferBody, deps: CawSer
   }
 
   const config = getCawServerConfig();
+  const pactApiKey = await getPactApiKey(config.pactId, deps);
   const transactionsApi = new TransactionsApi(
-    new Configuration({ basePath: config.apiUrl, apiKey: config.apiKey }),
+    new Configuration({ basePath: config.apiUrl, apiKey: pactApiKey }),
   );
   const response = await transactionsApi.transferTokens(walletId, body);
 
   return response.data;
+}
+
+async function getPactApiKey(pactId: string, deps: CawServerDeps) {
+  if (deps.getPactApiKey) {
+    return deps.getPactApiKey(pactId);
+  }
+
+  const config = getCawServerConfig();
+  const pactApiKey = deps.getPactApiKeyFromSdk
+    ? await deps.getPactApiKeyFromSdk(pactId)
+    : await getPactApiKeyFromSdk(pactId, config);
+
+  if (!pactApiKey) {
+    throw {
+      status: 403,
+      code: "missing_pact_api_key",
+      reason: "Active Pact did not return a pact-scoped API key for transaction execution.",
+      suggestion:
+        "Create or approve an active Pact with can_transfer permission, then update AGENT_WALLET_PACT_ID.",
+      details: {
+        pact_id_present: Boolean(pactId),
+        wallet_id_present: Boolean(config.walletId),
+        required_permission: "can_transfer",
+      },
+    };
+  }
+
+  return pactApiKey;
+}
+
+async function getPactApiKeyFromSdk(pactId: string, config = getCawServerConfig()) {
+  const pactsApi = new PactsApi(new Configuration({ basePath: config.apiUrl, apiKey: config.apiKey }));
+  const response = await pactsApi.getPact(pactId);
+
+  return response.data.result?.api_key;
 }
 
 export function buildCawRequestPreview(
@@ -216,28 +429,31 @@ export function buildCawRequestPreview(
   resolvedRecipient: ResolvedRecipient = resolveRecipient(request.recipient),
 ) {
   return {
-    chainId: CAW_CHAIN_ID,
-    tokenId: request.token,
+    chainId: getCawChainId(config),
+    tokenId: getCawTokenId(request, config),
     amount: String(request.amount),
     recipient: request.recipient,
     displayRecipient: resolvedRecipient.displayName || request.recipient,
     resolvedRecipientAddress: resolvedRecipient.evmAddress,
     recipientIsFallback: Boolean(resolvedRecipient.isFallback),
     pactIdPresent: Boolean(config.pactId),
+    walletIdPresent: Boolean(config.walletId),
   };
 }
 
 function validateMvpSethTransfer(request: PaymentRequest, config = getCawServerConfig()): CawValidationResult | null {
+  const tokenId = getCawTokenId(request, config);
+
   if (request.action !== "transfer") {
     return {
       code: "unsupported_chain",
       message: "Real CAW MVP currently supports only SETH transfer actions.",
     };
   }
-  if (request.token !== CAW_TOKEN_ID) {
+  if (request.token !== tokenId) {
     return {
       code: "unsupported_token",
-      message: "unsupported token: Real CAW MVP currently supports only SETH transfers.",
+      message: `unsupported token: Real CAW MVP currently supports only ${tokenId} transfers.`,
     };
   }
   if (request.chainId !== 11155111 && request.chainId !== 8453) {
@@ -266,6 +482,26 @@ function validateMvpSethTransfer(request: PaymentRequest, config = getCawServerC
   }
 
   return null;
+}
+
+function buildCawPayloadPreview(body: TransferBody, config = getCawServerConfig()) {
+  return {
+    pactIdPresent: Boolean(config.pactId),
+    src_addr: body.src_addr,
+    dst_addr: body.dst_addr,
+    tokenId: body.token_id,
+    chainId: body.chain_id,
+    amount: body.amount,
+    requestId: body.request_id,
+  };
+}
+
+function getCawChainId(config = getCawServerConfig()) {
+  return config.network || "SETH";
+}
+
+function getCawTokenId(request?: PaymentRequest, config = getCawServerConfig()) {
+  return config.tokenId || request?.token || "SETH";
 }
 
 function getSafeConfigStatus(config = getCawServerConfig()) {
@@ -304,33 +540,124 @@ function logSafeCawDebug(
   });
 }
 
-function formatCawSdkError(error: unknown) {
-  if (error && typeof error === "object") {
-    const maybeResponse = error as {
-      response?: {
-        status?: number;
-        data?: {
-          message?: string;
-          error?: string;
-          suggestion?: string;
-        };
-      };
-      message?: string;
-    };
-    const status = maybeResponse.response?.status;
-    const data = maybeResponse.response?.data;
-    const reason = data?.message || data?.error || maybeResponse.message || "CAW SDK validation error.";
-    const suggestion = data?.suggestion ? ` Suggestion: ${data.suggestion}` : "";
-
-    return status ? `CAW SDK validation error (${status}): ${reason}.${suggestion}` : `CAW SDK validation error: ${reason}.${suggestion}`;
-  }
-
-  return "CAW SDK validation error.";
-}
-
 function mapCawStatus(status: number | undefined): WalletExecutionResult["status"] {
   if (status === 900) return "confirmed";
   if (status && status >= 901) return "failed";
 
   return "pending";
+}
+
+export function extractCawTxHash(record: unknown): string {
+  const source = asRecord(record);
+  if (!source) return "";
+
+  const direct =
+    source.tx_hash ||
+    source.transaction_hash ||
+    source.hash ||
+    source.chain_tx_hash ||
+    source.transactionHash;
+  if (typeof direct === "string" && direct) return direct;
+
+  const dataHash = extractCawTxHash(source.data);
+  if (dataHash) return dataHash;
+
+  const extTransactions = Array.isArray(source.ext_transactions) ? source.ext_transactions : [];
+  for (const item of extTransactions) {
+    const nestedHash = extractCawTxHash(item);
+    if (nestedHash) return nestedHash;
+  }
+
+  return "";
+}
+
+export function buildSepoliaExplorerUrl(txHash: string) {
+  return txHash ? `https://sepolia.etherscan.io/tx/${txHash}` : "";
+}
+
+function buildTransactionStatusResult(
+  requestId: string,
+  record: CawTransactionRecord,
+): CawTransactionStatusResult {
+  const txHash = extractCawTxHash(record);
+  const status = mapCawRecordStatus(record.status);
+  const cawStatus = String(record.status_display || record.status || "");
+
+  return {
+    success: true,
+    requestId: String(record.request_id || requestId),
+    status: txHash ? "pending" : status,
+    txHash,
+    explorerUrl: buildSepoliaExplorerUrl(txHash),
+    message: txHash
+      ? "CAW transaction hash is available."
+      : "CAW request accepted, transaction hash is not available yet.",
+    cawStatus,
+    receiptId: typeof record.id === "string" ? record.id : undefined,
+    transactionRecordId: typeof record.id === "string" ? record.id : undefined,
+    safeRecord: sanitizeCawRecord(record),
+  };
+}
+
+function pendingTransactionStatus(requestId: string): CawTransactionStatusResult {
+  return {
+    success: true,
+    requestId,
+    status: "pending",
+    txHash: "",
+    explorerUrl: "",
+    message: "CAW request accepted, transaction hash is not available yet.",
+  };
+}
+
+function mapCawRecordStatus(status: unknown): WalletExecutionResult["status"] {
+  if (status === 900 || String(status).toLowerCase() === "success" || String(status).toLowerCase() === "completed") {
+    return "confirmed";
+  }
+  if (
+    typeof status === "number" && status >= 901 ||
+    ["failed", "denied", "rejected", "cancelled", "canceled"].includes(String(status).toLowerCase())
+  ) {
+    return "failed";
+  }
+
+  return "pending";
+}
+
+function sanitizeCawRecord(record: CawTransactionRecord): Record<string, unknown> {
+  const allowedKeys = [
+    "id",
+    "wallet_id",
+    "pact_id",
+    "type",
+    "request_type",
+    "chain_id",
+    "token_id",
+    "src_address",
+    "dst_address",
+    "amount",
+    "status",
+    "status_display",
+    "sub_status",
+    "transaction_hash",
+    "tx_hash",
+    "hash",
+    "chain_tx_hash",
+    "transactionHash",
+    "request_id",
+    "cobo_transaction_id",
+    "created_at",
+    "updated_at",
+    "ext_transactions",
+  ];
+
+  return Object.fromEntries(allowedKeys.filter((key) => key in record).map((key) => [key, record[key]]));
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
+}
+
+function sleep(ms: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
