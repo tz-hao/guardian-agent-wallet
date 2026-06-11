@@ -4,8 +4,14 @@ const supportedWalletModes: WalletMode[] = ["mock", "caw"];
 
 export type AppConfig = {
   walletMode: WalletMode;
-  cawApiBaseUrl: string;
-  cawWalletId: string;
+};
+
+export type CawServerConfig = {
+  apiUrl: string;
+  apiKey: string;
+  walletId: string;
+  pactId: string;
+  mockMode: boolean;
 };
 
 function resolveWalletMode(value: string | undefined): WalletMode {
@@ -18,10 +24,18 @@ function resolveWalletMode(value: string | undefined): WalletMode {
 
 export const appConfig: AppConfig = {
   walletMode: resolveWalletMode(process.env.NEXT_PUBLIC_WALLET_MODE),
-  cawApiBaseUrl: process.env.NEXT_PUBLIC_CAW_API_BASE_URL || "",
-  cawWalletId: process.env.NEXT_PUBLIC_CAW_WALLET_ID || "",
 };
 
-export function hasCawCredentials() {
-  return Boolean(appConfig.cawApiBaseUrl && appConfig.cawWalletId);
+export function getCawServerConfig(): CawServerConfig {
+  return {
+    apiUrl: process.env.AGENT_WALLET_API_URL || "",
+    apiKey: process.env.AGENT_WALLET_API_KEY || "",
+    walletId: process.env.AGENT_WALLET_WALLET_ID || "",
+    pactId: process.env.AGENT_WALLET_PACT_ID || "",
+    mockMode: process.env.CAW_MOCK_MODE === "true",
+  };
+}
+
+export function hasCawCredentials(config = getCawServerConfig()) {
+  return Boolean(config.apiUrl && config.apiKey && config.walletId);
 }

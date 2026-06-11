@@ -103,6 +103,19 @@ export type WalletInfo = {
   chainId: number;
   address: string;
   isConnected: boolean;
+  executionMode?: "real-caw" | "caw-fallback" | "mock";
+  cawConfigStatus?: {
+    apiUrlPresent: boolean;
+    walletIdPresent: boolean;
+    pactIdPresent: boolean;
+  };
+  cawTrustedRecipients?: Array<{
+    alias: string;
+    displayNameZh: string;
+    displayNameEn: string;
+    evmAddress: string;
+    isFallback: boolean;
+  }>;
 };
 
 export type WalletExecutionResult = {
@@ -111,6 +124,33 @@ export type WalletExecutionResult = {
   status: "pending" | "confirmed" | "failed";
   walletMode: WalletMode;
   message: string;
+  requestId?: string;
+  receiptId?: string;
+  walletAddress?: string;
+  executionMode?: "real-caw" | "caw-fallback" | "mock";
+  errorCode?:
+    | "missing_recipient"
+    | "invalid_amount"
+    | "missing_pact_id"
+    | "unresolved_recipient"
+    | "unsupported_token"
+    | "unsupported_chain"
+    | "caw_sdk_validation_error";
+  cawRequestPreview?: {
+    chainId: string;
+    tokenId: string;
+    amount: string;
+    recipient: string;
+    displayRecipient?: string;
+    resolvedRecipientAddress?: string;
+    recipientIsFallback?: boolean;
+    pactIdPresent: boolean;
+  };
+  recipientAlias?: string;
+  displayRecipient?: string;
+  resolvedRecipientAddress?: string;
+  recipientIsFallback?: boolean;
+  rawCawResponse?: Record<string, unknown>;
 };
 
 export type TransactionStatus = {

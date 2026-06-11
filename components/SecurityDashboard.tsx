@@ -3,26 +3,28 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import {
   Activity,
   Bot,
-  CheckCircle2,
-  Clock3,
   FileClock,
   Gauge,
   LayoutDashboard,
   LockKeyhole,
+  Settings,
   ShieldAlert,
   ShieldCheck,
+  Swords,
   Wallet,
-  XCircle,
-  Zap,
 } from "lucide-react";
+import { AgentProfilesPanel } from "@/components/AgentProfilesPanel";
+import { AttackSimulationPanel } from "@/components/AttackSimulationPanel";
 import { AuditTimeline } from "@/components/AuditTimeline";
 import { ChatBox } from "@/components/ChatBox";
 import { ConfirmPanel } from "@/components/ConfirmPanel";
+import { PactPreview } from "@/components/PactPreview";
 import { RiskCard } from "@/components/RiskCard";
-import { agentProfiles, getAgentProfile } from "@/lib/policy/agentProfiles";
+import { RiskIntelligencePanel } from "@/components/RiskIntelligencePanel";
 import {
   buildAuditTimelineItems,
   clearAuditLogs,
@@ -32,6 +34,7 @@ import {
   recordUserConfirmation,
 } from "@/lib/audit/auditLog";
 import { parseIntent } from "@/lib/intent/intentParser";
+import { agentProfiles, getAgentProfile } from "@/lib/policy/agentProfiles";
 import { evaluatePayment } from "@/lib/policy/policyEngine";
 import { getWalletAdapter } from "@/lib/wallets";
 import type {
@@ -46,7 +49,7 @@ import type {
 
 type DashboardView = "dashboard" | "risk" | "audit";
 
-const defaultPrompt = "\u4e70 10 USDC \u7684 ETH";
+const defaultPrompt = "支付 0.001 SETH 给 数据 API 服务商";
 const walletAdapter = getWalletAdapter();
 
 export function SecurityDashboard({ view }: { view: DashboardView }) {
@@ -54,22 +57,35 @@ export function SecurityDashboard({ view }: { view: DashboardView }) {
   const [input, setInput] = useState(defaultPrompt);
   const [request, setRequest] = useState<PaymentRequest | null>(null);
   const [decision, setDecision] = useState<PolicyDecision | null>(null);
-  const [agentProfileId, setAgentProfileId] = useState<AgentProfileId>("TradingAgent");
+  const [agentProfileId, setAgentProfileId] = useState<AgentProfileId>("PaymentAgent");
   const [walletResult, setWalletResult] = useState<WalletExecutionResult | null>(null);
   const [walletInfo, setWalletInfo] = useState<WalletInfo | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => getAuditLogs());
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const auditTimelineItems: AuditTimelineItem[] = buildAuditTimelineItems(auditLogs);
   const currentProfile = getAgentProfile(agentProfileId);
+  const walletExecutionMode =
+    walletResult?.executionMode ?? walletInfo?.executionMode ?? (walletAdapter.mode === "mock" ? "mock" : "caw-fallback");
 
   useEffect(() => {
     walletAdapter.getWalletInfo().then(setWalletInfo);
+
+    const auditLoadTimer = window.setTimeout(() => {
+      setAuditLogs(getAuditLogs());
+    }, 0);
+
+    return () => window.clearTimeout(auditLoadTimer);
   }, []);
 
   function analyzeRequest() {
-    const nextRequest = parseIntent(input);
+    analyzeInput(input);
+  }
+
+  function analyzeInput(value: string) {
+    const nextRequest = parseIntent(value);
     const nextDecision = evaluatePayment(nextRequest, currentProfile);
 
+    setInput(value);
     setRequest(nextRequest);
     setDecision(nextDecision);
     setWalletResult(null);
@@ -118,7 +134,7 @@ export function SecurityDashboard({ view }: { view: DashboardView }) {
   }
 
   function rejectRequest() {
-    if (!request || !decision) return;
+    if (!request) return;
 
     recordUserConfirmation({ requestId: request.id, confirmed: false });
     setAuditLogs(getAuditLogs());
@@ -142,134 +158,176 @@ export function SecurityDashboard({ view }: { view: DashboardView }) {
   }
 
   return (
-    <main className="min-h-screen bg-[#070a1a] text-slate-100">
-      <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(37,99,235,0.32),transparent_34%),radial-gradient(circle_at_top_right,rgba(126,34,206,0.28),transparent_30%)]" />
-      <header className="border-b border-indigo-300/10 bg-slate-950/70 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl flex-col gap-5 px-5 py-6 md:flex-row md:items-end md:justify-between md:px-8">
-          <div>
-            <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.16em] text-blue-300">
-              <ShieldCheck className="h-4 w-4" />
-              Web3 Security Dashboard
-            </div>
-            <h1 className="mt-2 text-3xl font-semibold tracking-normal text-white md:text-5xl">
-              Guardian Agent Wallet
-            </h1>
-            <p className="mt-3 max-w-2xl text-base leading-7 text-slate-400">
-              AI Agent Security Layer for Onchain Execution
-            </p>
+    <main className="min-h-screen bg-[#F8F9FA] text-[#111827]">
+      <div className="flex min-h-screen">
+        <Sidebar pathname={pathname} />
+
+        <div className="min-w-0 flex-1">
+          <TopHeader walletExecutionMode={walletExecutionMode} walletInfo={walletInfo} />
+
+          <div className="grid gap-8 px-6 py-8 xl:grid-cols-[minmax(0,1fr)_360px]">
+            <section className="min-w-0">
+              <PageIntro />
+
+              <div className="mt-8 grid gap-4 md:grid-cols-3">
+                <MetricCard title="Risk Score" value={decision ? String(decision.score) : "23"} caption={riskCaption(decision)} tone={decision?.riskLevel ?? "LOW"} />
+                <MetricCard title="Policy Decision" value={decision?.decision ?? "ALLOW"} caption="Policy Engine" decision={decision?.decision ?? "ALLOW"} />
+                <MetricCard title="Execution Mode" value={walletModeLabel(walletExecutionMode)} caption="Wallet Adapter" compact />
+              </div>
+
+              {view === "dashboard" ? (
+                <DashboardGrid
+                  input={input}
+                  setInput={setInput}
+                  analyzeRequest={analyzeRequest}
+                  runScenario={analyzeInput}
+                  request={request}
+                  decision={decision}
+                  agentProfileId={agentProfileId}
+                  handleProfileChange={handleProfileChange}
+                  walletResult={walletResult}
+                  isExecuting={isExecuting}
+                  executeRequest={executeRequest}
+                  rejectRequest={rejectRequest}
+                  currentProfile={currentProfile}
+                  walletInfo={walletInfo}
+                />
+              ) : null}
+
+              {view === "risk" ? (
+                <div className="mt-8 grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+                  <ControlPanel
+                    input={input}
+                    setInput={setInput}
+                    analyzeRequest={analyzeRequest}
+                    runScenario={analyzeInput}
+                    agentProfileId={agentProfileId}
+                    handleProfileChange={handleProfileChange}
+                  />
+                  <RiskReviewPanel
+                    request={request}
+                    decision={decision}
+                    walletResult={walletResult}
+                    isExecuting={isExecuting}
+                    executeRequest={executeRequest}
+                    rejectRequest={rejectRequest}
+                    currentProfile={currentProfile}
+                    walletInfo={walletInfo}
+                  />
+                </div>
+              ) : null}
+
+              {view === "audit" ? (
+                <div className="mt-8">
+                  <DashboardCard title="Audit Log" caption="审计日志" icon={<FileClock className="h-4 w-4" />}>
+                    <AuditTimeline
+                      items={auditTimelineItems}
+                      onClear={() => {
+                        clearAuditLogs();
+                        setAuditLogs([]);
+                      }}
+                    />
+                  </DashboardCard>
+                </div>
+              ) : null}
+            </section>
+
+            <aside className="min-w-0">
+              <DashboardCard title="Audit Panel" caption="实时执行证据" icon={<FileClock className="h-4 w-4" />}>
+                <AuditTimeline
+                  items={auditTimelineItems}
+                  onClear={() => {
+                    clearAuditLogs();
+                    setAuditLogs([]);
+                  }}
+                />
+              </DashboardCard>
+            </aside>
           </div>
-          <nav className="grid grid-cols-3 gap-2 text-sm">
-            <NavItem href="/" active={pathname === "/"} icon={<LayoutDashboard className="h-4 w-4" />}>
-              Dashboard
-            </NavItem>
-            <NavItem
-              href="/risk-review"
-              active={pathname === "/risk-review"}
-              icon={<ShieldAlert className="h-4 w-4" />}
-            >
-              Risk Review
-            </NavItem>
-            <NavItem
-              href="/audit-timeline"
-              active={pathname === "/audit-timeline"}
-              icon={<FileClock className="h-4 w-4" />}
-            >
-              Audit
-            </NavItem>
-          </nav>
         </div>
-      </header>
-
-      <section className="mx-auto max-w-7xl px-5 py-6 md:px-8">
-        <div className="grid gap-4 md:grid-cols-4">
-          <SummaryCard
-            icon={<Bot className="h-5 w-5" />}
-            label="Agent"
-            value={currentProfile.label}
-            detail={`Daily budget $${currentProfile.dailyBudget}`}
-          />
-          <SummaryCard
-            icon={<Gauge className="h-5 w-5" />}
-            label="Risk Score"
-            value={decision ? String(decision.score) : "--"}
-            detail={decision ? decision.riskLevel : "Awaiting request"}
-            tone={decision?.riskLevel}
-          />
-          <SummaryCard
-            icon={<LockKeyhole className="h-5 w-5" />}
-            label="Policy Result"
-            value={decision?.decision ?? "PENDING"}
-            detail={decision ? decision.triggeredRules.join(", ") : "No policy run yet"}
-            decision={decision?.decision}
-          />
-          <SummaryCard
-            icon={<Wallet className="h-5 w-5" />}
-            label="Wallet"
-            value={(walletInfo?.mode ?? walletAdapter.mode).toUpperCase()}
-            detail={walletInfo?.isConnected ? walletInfo.address : "Adapter ready"}
-          />
-        </div>
-
-        {view === "dashboard" ? (
-          <DashboardGrid
-            input={input}
-            setInput={setInput}
-            analyzeRequest={analyzeRequest}
-            request={request}
-            decision={decision}
-            agentProfileId={agentProfileId}
-            handleProfileChange={handleProfileChange}
-            walletResult={walletResult}
-            isExecuting={isExecuting}
-            executeRequest={executeRequest}
-            rejectRequest={rejectRequest}
-            auditTimelineItems={auditTimelineItems}
-            clearAudit={() => {
-              clearAuditLogs();
-              setAuditLogs([]);
-            }}
-          />
-        ) : null}
-
-        {view === "risk" ? (
-          <div className="mt-5 grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
-            <ControlPanel
-              input={input}
-              setInput={setInput}
-              analyzeRequest={analyzeRequest}
-              agentProfileId={agentProfileId}
-              handleProfileChange={handleProfileChange}
-            />
-            <RiskReviewPanel
-              request={request}
-              decision={decision}
-              walletResult={walletResult}
-              isExecuting={isExecuting}
-              executeRequest={executeRequest}
-              rejectRequest={rejectRequest}
-            />
-          </div>
-        ) : null}
-
-        {view === "audit" ? (
-          <div className="mt-5">
-            <SecurityCard
-              title="Audit Timeline"
-              kicker="execution evidence"
-              icon={<FileClock className="h-5 w-5" />}
-            >
-              <AuditTimeline
-                items={auditTimelineItems}
-                onClear={() => {
-                  clearAuditLogs();
-                  setAuditLogs([]);
-                }}
-              />
-            </SecurityCard>
-          </div>
-        ) : null}
-      </section>
+      </div>
     </main>
+  );
+}
+
+function Sidebar({ pathname }: { pathname: string }) {
+  const items = [
+    { label: "仪表盘", href: "/", activePath: "/", icon: <LayoutDashboard className="h-4 w-4" /> },
+    { label: "支付请求", href: "/", icon: <Wallet className="h-4 w-4" /> },
+    { label: "Pact 预览", href: "/", icon: <LockKeyhole className="h-4 w-4" /> },
+    { label: "风险审查", href: "/risk-review", activePath: "/risk-review", icon: <ShieldAlert className="h-4 w-4" /> },
+    { label: "攻击模拟", href: "/", icon: <Swords className="h-4 w-4" /> },
+    { label: "Agent 配置", href: "/", icon: <Bot className="h-4 w-4" /> },
+    { label: "审计日志", href: "/audit-timeline", activePath: "/audit-timeline", icon: <FileClock className="h-4 w-4" /> },
+    { label: "设置", href: "/", icon: <Settings className="h-4 w-4" /> },
+  ];
+
+  return (
+    <aside className="hidden w-64 shrink-0 border-r border-[#E5E7EB] bg-white px-4 py-6 lg:block">
+      <div className="flex items-center gap-3 px-2">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#E5E7EB] bg-[#111827] text-white">
+          <ShieldCheck className="h-5 w-5" />
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-[#111827]">Guardian</p>
+          <p className="text-xs text-[#6B7280]">Agent Wallet</p>
+        </div>
+      </div>
+
+      <nav className="mt-8 grid gap-1">
+        {items.map((item) => (
+          <Link
+            key={`${item.label}-${item.href}`}
+            href={item.href}
+            className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition ${
+              item.activePath === pathname
+                ? "bg-[#111827] font-medium text-white"
+                : "text-[#6B7280] hover:bg-[#F8F9FA] hover:text-[#111827]"
+            }`}
+          >
+            {item.icon}
+            {item.label}
+          </Link>
+        ))}
+      </nav>
+    </aside>
+  );
+}
+
+function TopHeader({
+  walletExecutionMode,
+  walletInfo,
+}: {
+  walletExecutionMode: NonNullable<WalletInfo["executionMode"]>;
+  walletInfo: WalletInfo | null;
+}) {
+  return (
+    <header className="sticky top-0 z-20 border-b border-[#E5E7EB] bg-white/90 backdrop-blur">
+      <div className="flex min-h-16 flex-col gap-3 px-6 py-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-[#6B7280]">Policy-Aware Agent Payment Framework</p>
+          <h1 className="text-xl font-semibold text-[#111827]">Guardian Agent Wallet</h1>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <WalletModeBadge executionMode={walletExecutionMode} />
+          <span className="max-w-72 truncate rounded-xl border border-[#E5E7EB] bg-white px-3 py-2 text-xs text-[#6B7280]">
+            {walletInfo?.isConnected ? walletInfo.address : "Wallet adapter ready"}
+          </span>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+function PageIntro() {
+  return (
+    <div className="max-w-3xl">
+      <p className="text-sm font-medium text-[#6B7280]">仪表盘</p>
+      <h2 className="mt-2 text-4xl font-semibold tracking-tight text-[#111827]">Agent payment control center</h2>
+      <p className="mt-4 text-sm leading-6 text-[#6B7280]">
+        AI 解释意图。策略判断风险。CAW 执行支付。人类治理边界。审计记录全过程。
+      </p>
+    </div>
   );
 }
 
@@ -277,6 +335,7 @@ function DashboardGrid({
   input,
   setInput,
   analyzeRequest,
+  runScenario,
   request,
   decision,
   agentProfileId,
@@ -285,12 +344,13 @@ function DashboardGrid({
   isExecuting,
   executeRequest,
   rejectRequest,
-  auditTimelineItems,
-  clearAudit,
+  currentProfile,
+  walletInfo,
 }: {
   input: string;
   setInput: (value: string) => void;
   analyzeRequest: () => void;
+  runScenario: (value: string) => void;
   request: PaymentRequest | null;
   decision: PolicyDecision | null;
   agentProfileId: AgentProfileId;
@@ -299,29 +359,31 @@ function DashboardGrid({
   isExecuting: boolean;
   executeRequest: () => void;
   rejectRequest: () => void;
-  auditTimelineItems: AuditTimelineItem[];
-  clearAudit: () => void;
+  currentProfile: (typeof agentProfiles)[AgentProfileId];
+  walletInfo: WalletInfo | null;
 }) {
   return (
-    <div className="mt-5 grid gap-5 xl:grid-cols-[0.9fr_1.05fr_0.95fr]">
-      <ControlPanel
-        input={input}
-        setInput={setInput}
-        analyzeRequest={analyzeRequest}
-        agentProfileId={agentProfileId}
-        handleProfileChange={handleProfileChange}
-      />
-      <RiskReviewPanel
-        request={request}
-        decision={decision}
-        walletResult={walletResult}
-        isExecuting={isExecuting}
-        executeRequest={executeRequest}
-        rejectRequest={rejectRequest}
-      />
-      <SecurityCard title="Audit Timeline" kicker="latest events" icon={<Clock3 className="h-5 w-5" />}>
-        <AuditTimeline items={auditTimelineItems} onClear={clearAudit} />
-      </SecurityCard>
+    <div className="mt-8 grid gap-6">
+      <div className="grid gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">
+        <ControlPanel
+          input={input}
+          setInput={setInput}
+          analyzeRequest={analyzeRequest}
+          runScenario={runScenario}
+          agentProfileId={agentProfileId}
+          handleProfileChange={handleProfileChange}
+        />
+        <RiskReviewPanel
+          request={request}
+          decision={decision}
+          walletResult={walletResult}
+          isExecuting={isExecuting}
+          executeRequest={executeRequest}
+          rejectRequest={rejectRequest}
+          currentProfile={currentProfile}
+          walletInfo={walletInfo}
+        />
+      </div>
     </div>
   );
 }
@@ -330,35 +392,32 @@ function ControlPanel({
   input,
   setInput,
   analyzeRequest,
+  runScenario,
   agentProfileId,
   handleProfileChange,
 }: {
   input: string;
   setInput: (value: string) => void;
   analyzeRequest: () => void;
+  runScenario: (value: string) => void;
   agentProfileId: AgentProfileId;
   handleProfileChange: (profileId: AgentProfileId) => void;
 }) {
   return (
-    <SecurityCard title="Agent" kicker="profile and intent" icon={<Bot className="h-5 w-5" />}>
-      <label className="mb-4 block">
-        <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-          Agent profile
-        </span>
-        <select
-          value={agentProfileId}
-          onChange={(event) => handleProfileChange(event.target.value as AgentProfileId)}
-          className="mt-2 w-full rounded-md border border-blue-300/20 bg-slate-950 px-3 py-3 text-sm text-slate-100 outline-none focus:border-blue-400"
-        >
-          {Object.values(agentProfiles).map((profile) => (
-            <option key={profile.id} value={profile.id}>
-              {profile.label}
-            </option>
-          ))}
-        </select>
-      </label>
-      <ChatBox value={input} onChange={setInput} onSubmit={analyzeRequest} />
-    </SecurityCard>
+    <div className="grid gap-6">
+      <DashboardCard title="Payment Requests" caption="支付请求" icon={<Activity className="h-4 w-4" />}>
+        <ChatBox value={input} onChange={setInput} onSubmit={analyzeRequest} />
+      </DashboardCard>
+      <DashboardCard title="Attack Simulation" caption="攻击模拟" icon={<Swords className="h-4 w-4" />}>
+        <AttackSimulationPanel
+          onRunScenario={runScenario}
+          getExpectedDecision={(value) => evaluatePayment(parseIntent(value), getAgentProfile(agentProfileId)).decision}
+        />
+      </DashboardCard>
+      <DashboardCard title="Agent Profiles" caption="Agent 配置" icon={<Bot className="h-4 w-4" />}>
+        <AgentProfilesPanel selectedProfileId={agentProfileId} onSelectProfile={handleProfileChange} />
+      </DashboardCard>
+    </div>
   );
 }
 
@@ -369,6 +428,8 @@ function RiskReviewPanel({
   isExecuting,
   executeRequest,
   rejectRequest,
+  currentProfile,
+  walletInfo,
 }: {
   request: PaymentRequest | null;
   decision: PolicyDecision | null;
@@ -376,214 +437,164 @@ function RiskReviewPanel({
   isExecuting: boolean;
   executeRequest: () => void;
   rejectRequest: () => void;
+  currentProfile: (typeof agentProfiles)[AgentProfileId];
+  walletInfo: WalletInfo | null;
 }) {
   return (
-    <SecurityCard title="Risk Review" kicker="policy result" icon={<ShieldAlert className="h-5 w-5" />}>
+    <div className="grid gap-6">
       {decision ? (
-        <div className="grid gap-5">
-          <div className="flex flex-wrap gap-2">
-            <StatusBadge decision={decision.decision} />
-            <RiskBadge riskLevel={decision.riskLevel} score={decision.score} />
-          </div>
-          <RiskCard decision={decision} />
-          <TransactionPreview request={request} />
-          <ConfirmPanel
-            decision={decision}
-            walletResult={walletResult}
-            isExecuting={isExecuting}
-            onExecute={executeRequest}
-            onConfirm={executeRequest}
-            onReject={rejectRequest}
-          />
-        </div>
+        <>
+          <DashboardCard title="Risk Review" caption="风险审查" icon={<Gauge className="h-4 w-4" />}>
+            <RiskIntelligencePanel decision={decision} request={request} />
+          </DashboardCard>
+          <DashboardCard title="Policy Decision" caption="策略结果" icon={<ShieldAlert className="h-4 w-4" />}>
+            <RiskCard decision={decision} request={request} />
+          </DashboardCard>
+          {request ? (
+            <DashboardCard title="Pact Preview" caption="Pact 预览" icon={<LockKeyhole className="h-4 w-4" />}>
+              <PactPreview request={request} decision={decision} agentProfile={currentProfile} walletInfo={walletInfo} />
+            </DashboardCard>
+          ) : null}
+          <DashboardCard title="Execution" caption="CAW 提交" icon={<Wallet className="h-4 w-4" />}>
+            <ConfirmPanel
+              decision={decision}
+              walletResult={walletResult}
+              isExecuting={isExecuting}
+              onExecute={executeRequest}
+              onConfirm={executeRequest}
+              onReject={rejectRequest}
+            />
+          </DashboardCard>
+        </>
       ) : (
-        <EmptyState text="Submit an agent command to run parser and policy checks." />
+        <DashboardCard title="Risk Review" caption="风险审查" icon={<Gauge className="h-4 w-4" />}>
+          <EmptyState text="选择一个真实 Agent 支付请求，或输入自定义 API/SaaS payment intent。系统会运行 intent parser、risk engine 和 policy engine。" />
+        </DashboardCard>
       )}
-    </SecurityCard>
-  );
-}
-
-function TransactionPreview({ request }: { request: PaymentRequest | null }) {
-  if (!request) return null;
-
-  return (
-    <div className="rounded-md border border-indigo-300/15 bg-slate-950/80 p-4">
-      <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-100">
-        <Activity className="h-4 w-4 text-blue-300" />
-        Transaction Preview
-      </div>
-      <dl className="grid gap-3 text-sm sm:grid-cols-2">
-        <Fact label="Action" value={request.action} />
-        <Fact label="Amount" value={`${request.amount.toFixed(2)} ${request.token}`} />
-        <Fact label="Recipient" value={request.recipient || "none"} mono />
-        <Fact label="Spender" value={request.spender || "none"} mono />
-        <Fact label="Chain ID" value={String(request.chainId)} />
-        <Fact label="Unlimited approval" value={request.isUnlimitedApproval ? "true" : "false"} />
-      </dl>
     </div>
   );
 }
 
-function SecurityCard({
+function DashboardCard({
   title,
-  kicker,
+  caption,
   icon,
   children,
 }: {
   title: string;
-  kicker: string;
-  icon: React.ReactNode;
-  children: React.ReactNode;
+  caption: string;
+  icon: ReactNode;
+  children: ReactNode;
 }) {
   return (
-    <section className="rounded-md border border-indigo-300/15 bg-slate-950/70 p-5 shadow-2xl shadow-blue-950/20 backdrop-blur">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-md border border-blue-300/20 bg-blue-500/10 text-blue-200">
+    <section className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+      <div className="mb-5 flex items-center justify-between gap-4">
+        <div>
+          <p className="text-xs font-medium text-[#6B7280]">{caption}</p>
+          <h3 className="mt-1 text-xl font-semibold text-[#111827]">{title}</h3>
+        </div>
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#E5E7EB] bg-[#F8F9FA] text-[#111827]">
           {icon}
         </div>
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-300">{kicker}</p>
-          <h2 className="mt-1 text-xl font-semibold text-white">{title}</h2>
-        </div>
       </div>
-      <div className="mt-5">{children}</div>
+      {children}
     </section>
   );
 }
 
-function SummaryCard({
-  icon,
-  label,
+function MetricCard({
+  title,
   value,
-  detail,
+  caption,
   tone,
   decision,
+  compact = false,
 }: {
-  icon: React.ReactNode;
-  label: string;
+  title: string;
   value: string;
-  detail: string;
+  caption: string;
   tone?: PolicyDecision["riskLevel"];
   decision?: PolicyDecision["decision"];
+  compact?: boolean;
 }) {
   return (
-    <div className="rounded-md border border-indigo-300/15 bg-slate-950/70 p-4 shadow-xl shadow-blue-950/10">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex h-9 w-9 items-center justify-center rounded-md bg-indigo-500/15 text-blue-200">
-          {icon}
+    <div className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-sm text-[#6B7280]">{title}</p>
+          <p className={`mt-3 font-semibold tracking-tight text-[#111827] ${compact ? "text-2xl leading-tight" : "text-4xl"}`}>
+            {value}
+          </p>
+          <p className="mt-2 text-sm text-[#6B7280]">{caption}</p>
         </div>
-        {decision ? <StatusBadge decision={decision} compact /> : null}
         {tone ? <RiskDot riskLevel={tone} /> : null}
+        {decision ? <StatusBadge decision={decision} compact /> : null}
       </div>
-      <p className="mt-4 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{label}</p>
-      <p className="mt-1 truncate text-xl font-semibold text-white">{value}</p>
-      <p className="mt-2 truncate text-xs text-slate-400">{detail}</p>
+      <SimpleLine tone={tone} />
     </div>
   );
 }
 
-function StatusBadge({
-  decision,
-  compact = false,
-}: {
-  decision: PolicyDecision["decision"];
-  compact?: boolean;
-}) {
+function WalletModeBadge({ executionMode }: { executionMode: NonNullable<WalletInfo["executionMode"]> }) {
+  return (
+    <span className="inline-flex items-center gap-2 rounded-xl border border-[#E5E7EB] bg-white px-3 py-2 text-xs font-medium text-[#111827]">
+      <Wallet className="h-3.5 w-3.5" />
+      {walletModeLabel(executionMode)}
+    </span>
+  );
+}
+
+function StatusBadge({ decision, compact = false }: { decision: PolicyDecision["decision"]; compact?: boolean }) {
   const classes = {
-    ALLOW: "border-emerald-300/30 bg-emerald-400/15 text-emerald-200",
-    CONFIRM: "border-amber-300/30 bg-amber-400/15 text-amber-200",
-    DENY: "border-rose-300/30 bg-rose-400/15 text-rose-200",
-  };
-  const icons = {
-    ALLOW: <CheckCircle2 className="h-3.5 w-3.5" />,
-    CONFIRM: <Clock3 className="h-3.5 w-3.5" />,
-    DENY: <XCircle className="h-3.5 w-3.5" />,
+    ALLOW: "bg-[#ECFDF5] text-[#047857]",
+    CONFIRM: "bg-[#FFFBEB] text-[#B45309]",
+    DENY: "bg-[#FEF2F2] text-[#B91C1C]",
   };
 
   return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-semibold ${classes[decision]}`}
-    >
-      {icons[decision]}
+    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${classes[decision]}`}>
       {compact ? decision.slice(0, 1) : decision}
     </span>
   );
 }
 
-function RiskBadge({
-  riskLevel,
-  score,
-}: {
-  riskLevel: PolicyDecision["riskLevel"];
-  score: number;
-}) {
-  return (
-    <span className="inline-flex items-center gap-1.5 rounded-md border border-blue-300/20 bg-blue-500/10 px-2.5 py-1 text-xs font-semibold text-blue-200">
-      <Gauge className="h-3.5 w-3.5" />
-      {riskLevel} / {score}
-    </span>
-  );
-}
-
 function RiskDot({ riskLevel }: { riskLevel: PolicyDecision["riskLevel"] }) {
-  const color =
-    riskLevel === "HIGH" ? "bg-rose-300" : riskLevel === "MEDIUM" ? "bg-amber-300" : "bg-emerald-300";
+  const color = riskLevel === "HIGH" ? "bg-[#EF4444]" : riskLevel === "MEDIUM" ? "bg-[#F59E0B]" : "bg-[#10B981]";
 
   return <span className={`h-2.5 w-2.5 rounded-full ${color}`} />;
 }
 
-function NavItem({
-  href,
-  active,
-  icon,
-  children,
-}: {
-  href: string;
-  active: boolean;
-  icon: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <Link
-      href={href}
-      className={`flex items-center justify-center gap-2 rounded-md border px-3 py-3 text-xs font-semibold transition ${
-        active
-          ? "border-blue-300/40 bg-blue-400/15 text-blue-100"
-          : "border-indigo-300/15 bg-slate-950 text-slate-400 hover:border-blue-300/30 hover:text-white"
-      }`}
-    >
-      {icon}
-      <span>{children}</span>
-    </Link>
-  );
-}
+function SimpleLine({ tone }: { tone?: PolicyDecision["riskLevel"] }) {
+  const stroke = tone === "HIGH" ? "#EF4444" : tone === "MEDIUM" ? "#F59E0B" : "#10B981";
 
-function Fact({
-  label,
-  value,
-  mono = false,
-}: {
-  label: string;
-  value: string;
-  mono?: boolean;
-}) {
   return (
-    <div>
-      <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{label}</dt>
-      <dd className={`mt-1 break-words text-slate-200 ${mono ? "font-mono text-xs" : "text-sm"}`}>
-        {value}
-      </dd>
-    </div>
+    <svg className="mt-6 h-10 w-full" viewBox="0 0 240 40" role="img" aria-label="Simple trend line">
+      <path d="M2 31 C 34 25, 48 12, 76 18 S 126 35, 154 20 S 201 8, 238 15" fill="none" stroke={stroke} strokeWidth="2" />
+    </svg>
   );
 }
 
 function EmptyState({ text }: { text: string }) {
   return (
-    <div className="rounded-md border border-indigo-300/15 bg-slate-950/70 p-5 text-sm leading-6 text-slate-400">
-      <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-md bg-indigo-500/15 text-blue-200">
-        <Zap className="h-4 w-4" />
-      </div>
+    <div className="rounded-2xl border border-dashed border-[#E5E7EB] bg-[#F8F9FA] p-8 text-sm leading-6 text-[#6B7280]">
       {text}
     </div>
   );
+}
+
+function walletModeLabel(executionMode: NonNullable<WalletInfo["executionMode"]>) {
+  const labels = {
+    "real-caw": "真实 CAW 模式",
+    "caw-fallback": "CAW 回退模式",
+    mock: "模拟模式",
+  };
+
+  return labels[executionMode];
+}
+
+function riskCaption(decision: PolicyDecision | null) {
+  if (!decision) return "低风险";
+  if (decision.riskLevel === "HIGH") return "高风险";
+  if (decision.riskLevel === "MEDIUM") return "中风险";
+  return "低风险";
 }

@@ -1,42 +1,25 @@
-import { appConfig, hasCawCredentials } from "@/lib/wallets/cawConfig";
 import type { PaymentRequest, TransactionStatus, WalletExecutionResult, WalletInfo } from "@/types";
-import { mockWalletAdapter } from "./mockWallet";
-import { createMockTxHash, type WalletAdapter } from "./walletAdapter";
+import type { WalletAdapter } from "./walletAdapter";
 
 export class CawWalletAdapter implements WalletAdapter {
   mode = "caw" as const;
 
   async getWalletInfo(): Promise<WalletInfo> {
-    return {
-      mode: this.mode,
-      name: "Cobo Agentic Wallet",
-      chainId: 8453,
-      address: appConfig.cawWalletId || "caw-wallet-not-configured",
-      isConnected: Boolean(appConfig.cawWalletId && appConfig.cawApiBaseUrl),
-    };
+    const response = await fetch("/api/caw/execute-payment", { method: "GET" });
+    const data = (await response.json()) as { wallet: WalletInfo };
+
+    return data.wallet;
   }
 
   async executePayment({ request }: { request: PaymentRequest }): Promise<WalletExecutionResult> {
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    const response = await fetch("/api/caw/execute-payment", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ request }),
+    });
+    const data = (await response.json()) as { result: WalletExecutionResult };
 
-    if (!hasCawCredentials()) {
-      const fallback = await mockWalletAdapter.executePayment({ request });
-
-      return {
-        ...fallback,
-        message: "CAW credentials missing; executed through mock wallet fallback.",
-      };
-    }
-
-    // Extension point: replace this placeholder with the CAW SDK/API call.
-    // The policy layer should pass only already-approved payment intents here.
-    return {
-      success: true,
-      txHash: createMockTxHash("0xCAW", request.id),
-      status: "pending",
-      walletMode: this.mode,
-      message: "CAW adapter placeholder accepted the payment intent.",
-    };
+    return data.result;
   }
 
   async getTransactionStatus(txHash: string): Promise<TransactionStatus> {

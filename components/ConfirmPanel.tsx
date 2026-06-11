@@ -16,61 +16,63 @@ export function ConfirmPanel({
   onReject: () => void;
 }) {
   return (
-    <div className="rounded-md border border-slate-700 bg-slate-900 p-4">
-      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-        Execution gate
-      </p>
-      <p className="mt-2 text-sm leading-6 text-slate-300">{messageFor(decision, walletResult, isExecuting)}</p>
+    <div className="grid gap-4">
+      <div className="rounded-xl border border-[#E5E7EB] bg-[#F8F9FA] p-4">
+        <p className="text-xs font-medium text-[#6B7280]">CAW Execution Gate</p>
+        <p className="mt-2 text-sm leading-6 text-[#111827]">{messageFor(decision, walletResult, isExecuting)}</p>
+      </div>
 
       {decision.decision === "ALLOW" ? (
         <button
           onClick={onExecute}
           disabled={isExecuting}
-          className="mt-4 w-full rounded-md bg-emerald-400 px-4 py-3 text-sm font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-60"
+          className="rounded-xl bg-[#111827] px-4 py-3 text-sm font-medium text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {isExecuting ? "Executing..." : "Execute"}
+          {isExecuting ? "执行中..." : "执行支付"}
         </button>
       ) : null}
 
       {decision.decision === "CONFIRM" ? (
-        <div className="mt-4 grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           <button
             onClick={onConfirm}
             disabled={isExecuting}
-            className="rounded-md bg-amber-400 px-4 py-3 text-sm font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-xl bg-[#111827] px-4 py-3 text-sm font-medium text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Confirm
+            {isExecuting ? "执行中..." : "确认执行"}
           </button>
           <button
             onClick={onReject}
-            className="rounded-md border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-200 hover:border-rose-400 hover:text-rose-200"
+            className="rounded-xl border border-[#E5E7EB] bg-white px-4 py-3 text-sm font-medium text-[#111827] transition hover:border-[#111827]"
           >
-            Reject
+            拒绝
           </button>
         </div>
       ) : null}
 
       {decision.decision === "DENY" ? (
-        <div className="mt-4 rounded-md border border-rose-400/40 bg-rose-400/10 p-3 text-sm text-rose-100">
-          Blocked by policy. No wallet execution is available.
+        <div className="rounded-xl border border-[#FECACA] bg-[#FEF2F2] p-4 text-sm text-[#B91C1C]">
+          已被策略拒绝，不会进入钱包执行。
         </div>
       ) : null}
 
-      {walletResult?.txHash ? (
-        <p className="mt-4 break-words font-mono text-xs text-cyan-200">{walletResult.txHash}</p>
+      {walletResult ? (
+        <div className="rounded-xl border border-[#E5E7EB] bg-white p-4">
+          <p className="text-xs font-medium text-[#6B7280]">执行结果</p>
+          <p className="mt-2 text-sm leading-6 text-[#111827]">{walletResult.message}</p>
+          {walletResult.txHash ? (
+            <p className="mt-2 break-words font-mono text-xs text-[#6B7280]">{walletResult.txHash}</p>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );
 }
 
-function messageFor(
-  decision: PolicyDecision,
-  walletResult: WalletExecutionResult | null,
-  isExecuting: boolean,
-) {
-  if (isExecuting) return "Wallet adapter is preparing a transaction result.";
+function messageFor(decision: PolicyDecision, walletResult: WalletExecutionResult | null, isExecuting: boolean) {
+  if (isExecuting) return "钱包适配器正在准备交易结果。";
   if (walletResult?.success) return walletResult.message;
-  if (decision.decision === "ALLOW") return "Low-risk request can be executed automatically.";
-  if (decision.decision === "CONFIRM") return "Human confirmation is required before execution.";
-  return "Policy denied this request.";
+  if (decision.decision === "ALLOW") return "低风险请求可在当前策略边界内自动执行。";
+  if (decision.decision === "CONFIRM") return "继续提交到 CAW 前需要人工确认。";
+  return "策略已在钱包执行前拒绝该请求。";
 }

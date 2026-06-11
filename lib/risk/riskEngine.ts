@@ -1,4 +1,5 @@
 import type { PaymentRequest, RiskAssessment } from "@/types";
+import { estimateBudgetValue } from "@/lib/policy/budgetValue";
 import { isAllowedToken, isSuspiciousAddress, isTrustedRecipient } from "@/lib/policy/securityConfig";
 
 export function assessRisk(request: PaymentRequest): RiskAssessment {
@@ -31,24 +32,26 @@ type RiskWarning = {
 };
 
 function evaluateAmountRisk(request: PaymentRequest): RiskWarning | null {
-  if (request.amount > 200) {
+  const budgetValue = estimateBudgetValue(request);
+
+  if (budgetValue > 200) {
     return {
       score: 50,
-      message: `Large amount: ${request.amount} ${request.token} is above the high-risk threshold.`,
+      message: `该请求金额 ${request.amount} ${request.token} 超过当前 Agent 单笔支付限制，需要人工确认。`,
     };
   }
 
-  if (request.amount > 50) {
+  if (budgetValue > 50) {
     return {
       score: 30,
-      message: `Elevated amount: ${request.amount} ${request.token} is above the normal single-payment range.`,
+      message: `该请求金额 ${request.amount} ${request.token} 高于常规 API 支付范围，需要额外审查。`,
     };
   }
 
   if (request.amount > 0) {
     return {
       score: 5,
-      message: `Small payment amount: ${request.amount} ${request.token}.`,
+      message: `小额服务支付：${request.amount} ${request.token}。`,
     };
   }
 
@@ -59,7 +62,7 @@ function evaluateRecipientRisk(request: PaymentRequest): RiskWarning | null {
   if (request.action === "transfer" && request.recipient.trim() === "") {
     return {
       score: 35,
-      message: "Missing recipient: the agent did not provide a destination address.",
+      message: "缺少收款方：Agent 没有提供服务商或目标地址。",
     };
   }
 
@@ -67,7 +70,7 @@ function evaluateRecipientRisk(request: PaymentRequest): RiskWarning | null {
 
   return {
     score: 35,
-    message: "Unknown recipient: the destination is not in the trusted recipient list.",
+    message: "未知收款方：目标不在可信服务商列表内。",
   };
 }
 
@@ -77,13 +80,13 @@ function evaluateApprovalRisk(request: PaymentRequest): RiskWarning | null {
   if (request.isUnlimitedApproval) {
     return {
       score: 70,
-      message: "Unlimited approval: this grants unlimited future spending permission.",
+      message: "无限授权：该请求试图创建无限授权，已被策略拒绝。",
     };
   }
 
   return {
     score: 35,
-    message: "Approval request: this gives another contract permission to spend tokens.",
+    message: "授权请求：该动作会允许外部合约花费钱包 Token。",
   };
 }
 
@@ -92,7 +95,7 @@ function evaluateTokenRisk(request: PaymentRequest): RiskWarning | null {
 
   return {
     score: 45,
-    message: `Unsupported token: ${request.token} is not in the allowed token list.`,
+    message: `不支持的 Token：${request.token} 不在当前 Pact 允许范围内。`,
   };
 }
 
@@ -103,18 +106,17 @@ function evaluateSuspiciousContractRisk(request: PaymentRequest): RiskWarning | 
 
   return {
     score: 55,
-    message: "Suspicious contract: the target address matches a known suspicious pattern.",
+    message: "可疑目标：收款方或合约地址匹配可疑地址模式。",
   };
 }
 
 function buildExplanation(request: PaymentRequest, warnings: string[]) {
   if (warnings.length === 0) {
-    return "This transaction matches the configured low-risk wallet profile.";
+    return "该请求为小额 API 支付，收款方在可信服务列表内，Token 与网络符合当前 CAW Pact 约束。";
   }
 
   if (request.action === "approve" && request.isUnlimitedApproval) {
-    const target = request.spender || request.recipient || "an unknown contract";
-    return `This transaction grants unlimited spending permission to ${target}.`;
+    return "该请求试图创建无限授权，已被策略拒绝。";
   }
 
   if (warnings.length === 1) {

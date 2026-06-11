@@ -5,11 +5,11 @@ import type { PaymentRequest, PolicyDecision, WalletExecutionResult, WalletInfo 
 
 const request: PaymentRequest = {
   id: "audit-request",
-  rawInput: "send 20 USDC to 0x123",
+  rawInput: "支付 0.001 SETH 给 数据 API 服务商",
   action: "transfer",
-  token: "USDC",
-  amount: 20,
-  recipient: "0x123",
+  token: "SETH",
+  amount: 0.001,
+  recipient: "data-api-provider",
   spender: "",
   chainId: 8453,
   timestamp: Date.UTC(2026, 0, 1, 12),
@@ -41,6 +41,24 @@ const executionResult: WalletExecutionResult = {
   message: "Mock wallet execution recorded.",
 };
 
+const cawExecutionResult: WalletExecutionResult = {
+  success: true,
+  txHash: "0xREALCAWTX",
+  status: "pending",
+  walletMode: "caw",
+  message: "CAW transfer submitted.",
+  requestId: "guardian-caw-audit-request",
+  receiptId: "tx-receipt-1",
+  walletAddress: "0x1111111111111111111111111111111111111111",
+  rawCawResponse: {
+    result: {
+      id: "tx-receipt-1",
+      request_id: "guardian-caw-audit-request",
+      transaction_hash: "0xREALCAWTX",
+    },
+  },
+};
+
 describe("audit log", () => {
   it("stores request, policy, risk, wallet, confirmation, and execution result", () => {
     const record = createAuditLog(request, decision, executionResult, wallet, "not_required");
@@ -64,9 +82,20 @@ describe("audit log", () => {
     const items = buildAuditTimelineItems([record]);
 
     assert.equal(items.length, 2);
-    assert.equal(items[0].title, "Intent parsed");
+    assert.equal(items[0].title, "收到 Agent 支付请求");
     assert.equal(items[0].tone, "info");
-    assert.ok(items[0].details.some((detail) => detail.includes("TRANSFER 20 USDC")));
-    assert.ok(items[1].details.some((detail) => detail.includes("Risk score: 10")));
+    assert.ok(items[0].details.some((detail) => detail.includes("TRANSFER 0.001 SETH")));
+    assert.ok(items[0].details.some((detail) => detail.includes("数据 API 服务商")));
+    assert.ok(items[1].details.some((detail) => detail.includes("风险评分: 10")));
+  });
+
+  it("stores CAW receipt metadata and real transaction hash when available", () => {
+    const record = createAuditLog(request, decision, cawExecutionResult, wallet, "not_required");
+
+    assert.equal(record.txHash, "0xREALCAWTX");
+    assert.equal(record.executionResult?.receiptId, "tx-receipt-1");
+    assert.equal(record.executionResult?.requestId, "guardian-caw-audit-request");
+    assert.equal(record.executionResult?.walletAddress, "0x1111111111111111111111111111111111111111");
+    assert.equal(record.executionResult?.rawCawResponse?.result?.transaction_hash, "0xREALCAWTX");
   });
 });

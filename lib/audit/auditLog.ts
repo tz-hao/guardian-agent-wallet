@@ -1,3 +1,4 @@
+import { RECIPIENT_DISPLAY_NAMES } from "@/lib/policy/securityConfig";
 import type {
   AuditEvent,
   AuditLog,
@@ -113,10 +114,10 @@ export function recordUserConfirmation({
     },
     createAuditEvent({
       type: "User Confirmed",
-      title: confirmed ? "User confirmed execution" : "User rejected execution",
+      title: confirmed ? "人工确认执行" : "人工拒绝执行",
       description: confirmed
-        ? "Human confirmation was captured before wallet execution."
-        : "Human review rejected this request before wallet execution.",
+        ? "继续提交到 CAW 前已完成人工确认。"
+        : "人工审查已拒绝该支付请求，不会提交到 CAW。",
     }),
   );
 
@@ -145,7 +146,7 @@ export function recordTransactionExecuted({
     },
     createAuditEvent({
       type: "Transaction Executed",
-      title: executionResult.success ? "Transaction executed" : "Transaction failed",
+      title: executionResult.success ? titleForExecutedTransaction(executionResult) : "CAW 执行失败",
       description: executionResult.message,
     }),
   );
@@ -165,8 +166,12 @@ export function buildAuditTimelineItems(records: AuditLog[]): AuditTimelineItem[
       tone: getEventTone(event, record),
       details: [
         `${record.request.action.toUpperCase()} ${record.request.amount} ${record.request.token}`,
-        `Decision: ${record.policyDecision.decision} / Risk score: ${record.riskScore}`,
-        record.txHash ? `Tx: ${record.txHash}` : `Wallet: ${record.wallet?.name ?? "not executed"}`,
+        `策略判断: ${record.policyDecision.decision} / 风险评分: ${record.riskScore}`,
+        `收款方: ${displayRecipient(record.request.recipient)}`,
+        record.executionResult?.resolvedRecipientAddress
+          ? `Resolved recipient: ${record.executionResult.resolvedRecipientAddress}`
+          : "Resolved recipient: pending",
+        record.txHash ? `Tx: ${record.txHash}` : `Wallet: ${record.wallet?.name ?? "未执行"}`,
       ],
     })),
   );
@@ -203,16 +208,32 @@ function createAuditRecord({
     events: [
       createAuditEvent({
         type: "Intent Parsed",
-        title: "Intent parsed",
-        description: `${request.action} request for ${request.amount} ${request.token} to ${request.recipient || "no recipient"}.`,
+        title: "收到 Agent 支付请求",
+        description: `支付意图已解析：${request.action} ${request.amount} ${request.token} -> ${displayRecipient(request.recipient)}。`,
       }),
       createAuditEvent({
         type: "Policy Evaluated",
-        title: `Policy evaluated: ${decision.decision}`,
+        title: `策略判断：${decisionLabel(decision.decision)}`,
         description: decision.reason,
       }),
     ],
   };
+}
+
+function displayRecipient(recipient: string) {
+  return RECIPIENT_DISPLAY_NAMES[recipient] ?? (recipient || "未提供收款方");
+}
+
+function decisionLabel(decision: PolicyDecision["decision"]) {
+  if (decision === "ALLOW") return "允许执行";
+  if (decision === "CONFIRM") return "需要人工确认";
+  return "拒绝执行";
+}
+
+function titleForExecutedTransaction(executionResult: WalletExecutionResult) {
+  if (executionResult.receiptId) return "CAW Receipt 已生成";
+  if (executionResult.executionMode === "real-caw") return "已提交到 Cobo Agentic Wallet";
+  return "模拟钱包已执行";
 }
 
 function appendEvent(record: AuditLog, event: AuditEvent): AuditLog {

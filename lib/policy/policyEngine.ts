@@ -1,6 +1,7 @@
 import type { PaymentRequest, PolicyDecision } from "@/types";
 import type { AgentProfile } from "@/types";
 import { defaultAgentProfile, resolveAgentAction } from "@/lib/policy/agentProfiles";
+import { estimateBudgetValue } from "@/lib/policy/budgetValue";
 import { assessRisk } from "@/lib/risk/riskEngine";
 import { isSuspiciousAddress } from "@/lib/policy/securityConfig";
 
@@ -75,7 +76,7 @@ export const AgentPermissionPolicy: PolicyRule = {
       decision: "DENY",
       riskLevel: "HIGH",
       score: 95,
-      reason: `${context.agentProfile.id} is not allowed to perform ${requestedAction} actions.`,
+      reason: `${context.agentProfile.id} 无权执行 ${requestedAction} 动作，需要切换到具备该权限的 Agent Profile。`,
     };
   },
 };
@@ -91,7 +92,7 @@ export const UnknownActionPolicy: PolicyRule = {
       decision: "CONFIRM",
       riskLevel: "MEDIUM",
       score: 50,
-      reason: "The agent request could not be parsed into a supported wallet action.",
+      reason: "该 Agent 请求无法解析为受支持的钱包动作，需要人工确认。",
     };
   },
 };
@@ -100,14 +101,15 @@ export const DailyBudgetPolicy: PolicyRule = {
   id: "daily_budget",
   label: "Daily budget",
   evaluate(request, context) {
-    if (context.dailySpent + request.amount <= context.dailyBudgetLimit) return null;
+    const budgetValue = estimateBudgetValue(request);
+    if (context.dailySpent + budgetValue <= context.dailyBudgetLimit) return null;
 
     return {
       id: this.id,
       decision: "CONFIRM",
       riskLevel: "HIGH",
       score: 80,
-      reason: `This request would exceed the daily budget of ${context.dailyBudgetLimit} ${request.token}.`,
+      reason: `该请求金额超过当前 Agent 每日预算限制（${context.dailyBudgetLimit} budget units），需要人工确认。`,
     };
   },
 };
@@ -116,14 +118,15 @@ export const SinglePaymentLimitPolicy: PolicyRule = {
   id: "single_payment_limit",
   label: "Single payment limit",
   evaluate(request, context) {
-    if (request.amount <= context.singlePaymentLimit) return null;
+    const budgetValue = estimateBudgetValue(request);
+    if (budgetValue <= context.singlePaymentLimit) return null;
 
     return {
       id: this.id,
       decision: "CONFIRM",
       riskLevel: "HIGH",
       score: 75,
-      reason: `The amount is above the single payment limit of ${context.singlePaymentLimit} ${request.token}.`,
+      reason: `该请求金额超过当前 Agent 单笔支付限制（${context.singlePaymentLimit} budget units），需要人工确认。`,
     };
   },
 };
@@ -138,7 +141,7 @@ export const TrustedRecipientPolicy: PolicyRule = {
         decision: "CONFIRM",
         riskLevel: "MEDIUM",
         score: 55,
-        reason: "The transfer recipient is missing and must be reviewed before execution.",
+        reason: "该支付请求缺少收款方，执行前必须人工确认。",
       };
     }
 
@@ -148,7 +151,7 @@ export const TrustedRecipientPolicy: PolicyRule = {
         decision: "CONFIRM",
         riskLevel: "HIGH",
         score: 85,
-        reason: "The recipient matches a suspicious address pattern.",
+        reason: "该请求的收款方匹配可疑地址模式，需要人工确认。",
       };
     }
 
@@ -159,7 +162,7 @@ export const TrustedRecipientPolicy: PolicyRule = {
       decision: "CONFIRM",
       riskLevel: "MEDIUM",
       score: 60,
-      reason: "The recipient is not in the trusted recipient list.",
+      reason: "该收款方不在可信服务商列表内，需要人工确认。",
     };
   },
 };
@@ -175,7 +178,7 @@ export const UnlimitedApprovalPolicy: PolicyRule = {
       decision: "DENY",
       riskLevel: "HIGH",
       score: 100,
-      reason: "Unlimited token approval is blocked because it can drain the wallet later.",
+      reason: "该请求试图创建无限授权，已被策略拒绝。",
     };
   },
 };
@@ -191,7 +194,7 @@ export const AllowedTokenPolicy: PolicyRule = {
       decision: "DENY",
       riskLevel: "HIGH",
       score: 90,
-      reason: `${request.token} is not approved for agent execution.`,
+      reason: `${request.token} 不在当前 CAW Pact 允许的 Token 范围内，已被策略拒绝。`,
     };
   },
 };
@@ -214,7 +217,7 @@ export const TimeWindowPolicy: PolicyRule = {
       decision: "CONFIRM",
       riskLevel: "MEDIUM",
       score: 45,
-      reason: `The request was made outside the allowed execution window (${startHourUtc}:00-${endHourUtc}:00 UTC).`,
+      reason: `该请求不在允许执行时间窗口内（${startHourUtc}:00-${endHourUtc}:00 UTC），需要人工确认。`,
     };
   },
 };
@@ -252,7 +255,7 @@ export function evaluatePolicies(
       decision: "ALLOW",
       riskLevel: risk.riskLevel,
       score: Math.max(10, risk.riskScore),
-      reason: `${risk.explanation} Request is within policy: trusted recipient, allowed token, payment limit, daily budget, and execution window all passed.`,
+      reason: "该请求为小额 API 支付，收款方在可信服务列表内，Token 与网络符合当前 CAW Pact 约束。",
       triggeredRules: ["all_checks_passed"],
     });
   }

@@ -1,43 +1,62 @@
-import type { PolicyDecision } from "@/types";
+import { buildRiskFactors } from "@/lib/risk/riskBreakdown";
+import type { PaymentRequest, PolicyDecision } from "@/types";
 
-const styles = {
-  ALLOW: {
-    label: "ALLOW",
-    className: "border-emerald-400/40 bg-emerald-400/10 text-emerald-100",
-    dot: "bg-emerald-400",
-  },
-  CONFIRM: {
-    label: "CONFIRM",
-    className: "border-amber-400/40 bg-amber-400/10 text-amber-100",
-    dot: "bg-amber-400",
-  },
-  DENY: {
-    label: "DENY",
-    className: "border-rose-400/40 bg-rose-400/10 text-rose-100",
-    dot: "bg-rose-400",
-  },
-};
-
-export function RiskCard({ decision }: { decision: PolicyDecision }) {
-  const style = styles[decision.decision];
+export function RiskCard({
+  decision,
+  request,
+}: {
+  decision: PolicyDecision;
+  request?: PaymentRequest | null;
+}) {
+  const factors = request ? buildRiskFactors(request) : [];
 
   return (
-    <div className={`rounded-md border p-5 ${style.className}`}>
-      <div className="flex items-center gap-3">
-        <span className={`h-3 w-3 rounded-full ${style.dot}`} />
-        <h2 className="text-2xl font-semibold">{style.label}</h2>
+    <div className="grid gap-5">
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[#E5E7EB] bg-[#F8F9FA] p-5">
+        <div>
+          <p className="text-xs font-medium text-[#6B7280]">Policy Decision</p>
+          <p className="mt-2 text-3xl font-semibold tracking-tight text-[#111827]">{decision.decision}</p>
+        </div>
+        <span className={`rounded-full px-3 py-1 text-xs font-medium ${decisionClass(decision.decision)}`}>
+          {decision.riskLevel} / {decision.score}
+        </span>
       </div>
-      <p className="mt-3 text-sm leading-6">{decision.reason}</p>
-      <p className="mt-3 text-xs font-semibold uppercase tracking-[0.12em]">
-        Risk level: {decision.riskLevel} / Score: {decision.score}
-      </p>
-      <div className="mt-4 flex flex-wrap gap-2">
+
+      <p className="text-sm leading-6 text-[#111827]">{decision.reason}</p>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        {factors.map((factor) => (
+          <div key={factor.key} className="rounded-xl border border-[#E5E7EB] bg-white p-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-medium text-[#111827]">{factor.label}</p>
+              <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${riskClass(factor.value)}`}>
+                {factor.value}
+              </span>
+            </div>
+            <p className="mt-2 text-xs leading-5 text-[#6B7280]">{factor.explanation}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap gap-2">
         {decision.triggeredRules.map((rule) => (
-          <span key={rule} className="rounded-md bg-black/25 px-3 py-2 font-mono text-xs">
+          <span key={rule} className="rounded-full border border-[#E5E7EB] bg-white px-3 py-1 text-xs text-[#111827]">
             {rule}
           </span>
         ))}
       </div>
     </div>
   );
+}
+
+function decisionClass(decision: PolicyDecision["decision"]) {
+  if (decision === "ALLOW") return "bg-[#ECFDF5] text-[#047857]";
+  if (decision === "CONFIRM") return "bg-[#FFFBEB] text-[#B45309]";
+  return "bg-[#FEF2F2] text-[#B91C1C]";
+}
+
+function riskClass(value: "LOW" | "MEDIUM" | "HIGH") {
+  if (value === "HIGH") return "bg-[#FEF2F2] text-[#B91C1C]";
+  if (value === "MEDIUM") return "bg-[#FFFBEB] text-[#B45309]";
+  return "bg-[#ECFDF5] text-[#047857]";
 }

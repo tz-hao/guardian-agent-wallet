@@ -1,5 +1,17 @@
-export const TRUSTED_RECIPIENTS = ["0x123", "0xSAFE", "x402-service"] as const;
-export const ALLOWED_TOKENS = ["USDC", "USDT", "ETH", "DAI", "WETH"] as const;
+export const TRUSTED_RECIPIENTS = [
+  "data-api-provider",
+  "ai-inference-service",
+  "onchain-analytics-api",
+  "premium-research-feed",
+] as const;
+export const ALLOWED_TOKENS = ["USDC", "USDT", "ETH", "DAI", "WETH", "SETH"] as const;
+
+export const RECIPIENT_DISPLAY_NAMES: Record<string, string> = {
+  "data-api-provider": "数据 API 服务商",
+  "ai-inference-service": "AI 推理服务",
+  "onchain-analytics-api": "链上分析 API",
+  "premium-research-feed": "高级研究数据源",
+};
 
 export function isSuspiciousAddress(address: string) {
   return address.startsWith("0xBAD") || address.startsWith("0xbad");

@@ -32,7 +32,9 @@ flowchart TD
 - `lib/policy/securityConfig.ts`: central allowlists and suspicious address helpers.
 - `lib/wallets/walletAdapter.ts`: wallet adapter interface.
 - `lib/wallets/mockWallet.ts`: deterministic mock execution.
-- `lib/wallets/cawWallet.ts`: CAW placeholder adapter.
+- `lib/wallets/cawWallet.ts`: frontend CAW adapter that calls the server API route.
+- `lib/wallets/cawServer.ts`: server-side CAW execution helper.
+- `app/api/caw/execute-payment/route.ts`: server API route for CAW execution and fallback handling.
 - `lib/audit/auditLog.ts`: local audit record and timeline generation.
 - `components/SecurityDashboard.tsx`: main dashboard orchestration.
 

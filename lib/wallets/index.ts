@@ -1,10 +1,10 @@
-import { appConfig, hasCawCredentials } from "@/lib/wallets/cawConfig";
+import { appConfig } from "@/lib/wallets/cawConfig";
 import { cawWalletAdapter } from "./cawWallet";
 import { mockWalletAdapter } from "./mockWallet";
 import type { WalletAdapter } from "./walletAdapter";
 
 export function getWalletAdapter(): WalletAdapter {
-  if (appConfig.walletMode === "caw" && hasCawCredentials()) {
+  if (appConfig.walletMode === "caw") {
     return cawWalletAdapter;
   }
 

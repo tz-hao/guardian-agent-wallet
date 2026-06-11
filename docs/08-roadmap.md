@@ -9,7 +9,7 @@ Guardian Agent Wallet should evolve from a local MVP into a CAW-powered policy l
 - Policy engine.
 - Agent profiles.
 - Mock wallet adapter.
-- CAW placeholder adapter.
+- CAW-ready and CAW-integrated execution adapter.
 - Audit timeline.
 - Web3 security dashboard.
 

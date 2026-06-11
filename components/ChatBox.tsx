@@ -1,8 +1,8 @@
 const examples = [
-  "\u4e70 10 USDC \u7684 ETH",
-  "\u4e70 200 USDC \u7684 ETH",
-  "\u8f6c\u8d26 20 USDC \u7ed9 0xBAD",
-  "approve unlimited USDC",
+  "支付 0.001 SETH 给 数据 API 服务商",
+  "支付 0.005 SETH 给 AI 推理服务",
+  "支付 0.01 SETH 给 链上分析 API",
+  "支付 0.05 SETH 给 高级研究数据源",
 ];
 
 export function ChatBox({
@@ -19,26 +19,28 @@ export function ChatBox({
       <textarea
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="min-h-32 w-full resize-none rounded-md border border-slate-700 bg-slate-950 p-4 text-sm leading-6 text-slate-100 outline-none placeholder:text-slate-500 focus:border-cyan-400"
-        aria-label="Agent action request"
-        placeholder="Describe an onchain action..."
+        className="min-h-32 w-full resize-none rounded-xl border border-[#E5E7EB] bg-white p-4 font-mono text-sm leading-6 text-[#111827] outline-none transition placeholder:text-[#9CA3AF] focus:border-[#111827]"
+        aria-label="Agent payment request"
+        placeholder="支付 0.001 SETH 给 数据 API 服务商"
       />
-      <div className="grid gap-2 sm:grid-cols-2">
+
+      <div className="grid gap-2">
         {examples.map((prompt) => (
           <button
             key={prompt}
             onClick={() => onChange(prompt)}
-            className="rounded-md border border-slate-700 bg-slate-900 px-4 py-3 text-left text-xs leading-5 text-slate-300 transition hover:border-cyan-400 hover:text-white"
+            className="rounded-xl border border-[#E5E7EB] bg-white px-4 py-3 text-left text-xs leading-5 text-[#6B7280] transition hover:border-[#111827] hover:text-[#111827]"
           >
             {prompt}
           </button>
         ))}
       </div>
+
       <button
         onClick={onSubmit}
-        className="rounded-md bg-cyan-400 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300"
+        className="rounded-xl bg-[#111827] px-4 py-3 text-sm font-medium text-white transition hover:bg-black"
       >
-        Analyze request
+        分析支付请求
       </button>
     </div>
   );

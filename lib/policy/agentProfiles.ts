@@ -1,31 +1,33 @@
 import type { AgentProfile, AgentProfileId, PaymentRequest } from "@/types";
 import { ALLOWED_TOKENS, TRUSTED_RECIPIENTS } from "@/lib/policy/securityConfig";
 
+const SETH_BUDGET_UNIT = 3000;
+
 export const agentProfiles: Record<AgentProfileId, AgentProfile> = {
   ResearchAgent: {
     id: "ResearchAgent",
     label: "Research Agent",
     allowedActions: ["pay_api"],
-    dailyBudget: 100,
-    singlePaymentLimit: 20,
-    allowedRecipients: ["x402-service"],
-    allowedTokens: ["USDC"],
+    dailyBudget: 5 * SETH_BUDGET_UNIT,
+    singlePaymentLimit: 1 * SETH_BUDGET_UNIT,
+    allowedRecipients: [...TRUSTED_RECIPIENTS],
+    allowedTokens: ["USDC", "SETH"],
   },
   PaymentAgent: {
     id: "PaymentAgent",
     label: "Payment Agent",
     allowedActions: ["pay_api", "transfer"],
-    dailyBudget: 300,
-    singlePaymentLimit: 50,
+    dailyBudget: 20 * SETH_BUDGET_UNIT,
+    singlePaymentLimit: 5 * SETH_BUDGET_UNIT,
     allowedRecipients: [...TRUSTED_RECIPIENTS],
-    allowedTokens: ["USDC", "USDT", "DAI"],
+    allowedTokens: ["USDC", "USDT", "DAI", "SETH"],
   },
   TradingAgent: {
     id: "TradingAgent",
     label: "Trading Agent",
-    allowedActions: ["swap", "transfer", "pay_api"],
-    dailyBudget: 1000,
-    singlePaymentLimit: 250,
+    allowedActions: ["swap", "transfer"],
+    dailyBudget: 100 * SETH_BUDGET_UNIT,
+    singlePaymentLimit: 25 * SETH_BUDGET_UNIT,
     allowedRecipients: [...TRUSTED_RECIPIENTS],
     allowedTokens: [...ALLOWED_TOKENS],
   },
@@ -38,7 +40,7 @@ export function getAgentProfile(profileId: AgentProfileId = defaultAgentProfile.
 }
 
 export function resolveAgentAction(request: PaymentRequest) {
-  if (request.recipient === "x402-service") {
+  if (TRUSTED_RECIPIENTS.includes(request.recipient as (typeof TRUSTED_RECIPIENTS)[number])) {
     return request.action === "swap" ? "swap" : "pay_api";
   }
 

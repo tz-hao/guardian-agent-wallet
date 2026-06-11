@@ -10,7 +10,7 @@ function request(overrides: Partial<PaymentRequest> = {}): PaymentRequest {
     action: "swap",
     token: "USDC",
     amount: 10,
-    recipient: "x402-service",
+    recipient: "data-api-provider",
     spender: "",
     chainId: 8453,
     timestamp: Date.UTC(2026, 0, 1, 12),
@@ -25,7 +25,7 @@ describe("risk engine", () => {
 
     assert.equal(risk.riskScore, 5);
     assert.equal(risk.riskLevel, "LOW");
-    assert.deepEqual(risk.warnings, ["Small payment amount: 10 USDC."]);
+    assert.deepEqual(risk.warnings, ["小额服务支付：10 USDC。"]);
   });
 
   it("generates a human explanation for unlimited approvals", () => {
@@ -43,11 +43,11 @@ describe("risk engine", () => {
     assert.equal(risk.riskLevel, "HIGH");
     assert.equal(
       risk.explanation,
-      "This transaction grants unlimited spending permission to 0xUNKNOWN.",
+      "该请求试图创建无限授权，已被策略拒绝。",
     );
     assert.ok(
       risk.warnings.includes(
-        "Unlimited approval: this grants unlimited future spending permission.",
+        "无限授权：该请求试图创建无限授权，已被策略拒绝。",
       ),
     );
   });
@@ -57,7 +57,7 @@ describe("risk engine", () => {
 
     assert.equal(risk.riskScore, 50);
     assert.equal(risk.riskLevel, "MEDIUM");
-    assert.ok(risk.warnings.includes("Unsupported token: DOGE is not in the allowed token list."));
+    assert.ok(risk.warnings.includes("不支持的 Token：DOGE 不在当前 Pact 允许范围内。"));
   });
 
   it("flags unknown recipients and suspicious contracts", () => {
@@ -72,12 +72,12 @@ describe("risk engine", () => {
     assert.equal(risk.riskLevel, "HIGH");
     assert.ok(
       risk.warnings.includes(
-        "Unknown recipient: the destination is not in the trusted recipient list.",
+        "未知收款方：目标不在可信服务商列表内。",
       ),
     );
     assert.ok(
       risk.warnings.includes(
-        "Suspicious contract: the target address matches a known suspicious pattern.",
+        "可疑目标：收款方或合约地址匹配可疑地址模式。",
       ),
     );
   });

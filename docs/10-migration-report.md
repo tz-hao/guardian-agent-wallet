@@ -101,7 +101,7 @@ Ready boundaries:
 
 ## 6. Remaining TODOs
 
-- Implement real Cobo Agentic Wallet API/SDK calls inside `lib/wallets/cawWallet.ts`.
+- Continue expanding Cobo Agentic Wallet API/SDK calls from the server-side CAW execution path.
 - Expand `cawTypes.ts` after the real CAW API shape is confirmed.
 - Add unit tests for CAW mode with missing credentials and mocked valid credentials.
 - Remove `lib/mockWallet.ts` legacy compatibility re-export after old imports are no longer needed.
@@ -128,8 +128,8 @@ The Windows environment used `npm.cmd` to avoid PowerShell script execution issu
 
 ## 8. Known Issues
 
-- Real CAW execution is not implemented yet.
-- CAW mode falls back to mock mode if credentials are missing.
+- Real CAW execution is implemented for the narrow MVP `SETH` transfer path.
+- CAW mode falls back to mock mode if server credentials are missing or `CAW_MOCK_MODE=true`.
 - Audit persistence is browser localStorage only.
 - `lib/mockWallet.ts` is still present as a compatibility re-export.
 - Some older docs still exist alongside the new numbered docs.
