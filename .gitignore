@@ -31,6 +31,16 @@ yarn-error.log*
 .pnpm-debug.log*
 .codex-dev-server*.log
 
+# local Codex reports and screenshots
+/*_REPORT.md
+/UPGRADE_REPORT_*.md
+/*_AUDIT.md
+/SUBMISSION_CHECKLIST.md
+/PROJECT_STATUS_REPORT.md
+/public/current-demo-check.png
+/public/design-after-dashboard.png
+/public/guardian-agent-wallet-hero.png
+
 # env files (can opt-in for committing if needed)
 .env*
 
