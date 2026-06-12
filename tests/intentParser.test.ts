@@ -5,10 +5,15 @@ import { parseIntent } from "../lib/intent/intentParser";
 describe("intent parser", () => {
   it("parses realistic Chinese agent payment requests into trusted service aliases", () => {
     const cases = [
-      ["支付 0.001 SETH 给 数据 API 服务商", 0.001, "data-api-provider"],
-      ["支付 0.005 SETH 给 AI 推理服务", 0.005, "ai-inference-service"],
-      ["支付 0.01 SETH 给 链上分析 API", 0.01, "onchain-analytics-api"],
-      ["支付 0.05 SETH 给 高级研究数据源", 0.05, "premium-research-feed"],
+      ["\u652f\u4ed8 0.0001 SETH \u7ed9 \u6570\u636e API \u670d\u52a1\u5546", 0.0001, "data-api-provider"],
+      ["\u652f\u4ed8 0.001 SETH \u7ed9 \u6570\u636e API \u670d\u52a1\u5546", 0.001, "data-api-provider"],
+      ["\u652f\u4ed8 0.005 SETH \u7ed9 AI \u63a8\u7406\u670d\u52a1", 0.005, "ai-inference-service"],
+      ["\u652f\u4ed8 0.01 SETH \u7ed9 \u94fe\u4e0a\u5206\u6790 API", 0.01, "onchain-analytics-api"],
+      [
+        "\u652f\u4ed8 0.05 SETH \u7ed9 \u9ad8\u7ea7\u7814\u7a76\u6570\u636e\u6e90",
+        0.05,
+        "premium-research-feed",
+      ],
     ] as const;
 
     for (const [input, amount, recipient] of cases) {

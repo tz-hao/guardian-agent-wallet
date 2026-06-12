@@ -11,27 +11,46 @@ const TO = "\u7ed9";
 const serviceRecipientAliases: Array<{ alias: string; names: string[] }> = [
   {
     alias: "data-api-provider",
-    names: ["数据 API 服务商", "数据API服务商", "Data API Provider", "data-api-provider"],
+    names: [
+      "\u6570\u636e API \u670d\u52a1\u5546",
+      "\u6570\u636eAPI\u670d\u52a1\u5546",
+      "Data API Provider",
+      "data-api-provider",
+    ],
   },
   {
     alias: "ai-inference-service",
-    names: ["AI 推理服务", "AI推理服务", "AI Inference Service", "ai-inference-service"],
+    names: [
+      "AI \u63a8\u7406\u670d\u52a1",
+      "AI\u63a8\u7406\u670d\u52a1",
+      "AI Inference Service",
+      "ai-inference-service",
+    ],
   },
   {
     alias: "onchain-analytics-api",
-    names: ["链上分析 API", "链上分析API", "Onchain Analytics API", "onchain-analytics-api"],
+    names: [
+      "\u94fe\u4e0a\u5206\u6790 API",
+      "\u94fe\u4e0a\u5206\u6790API",
+      "Onchain Analytics API",
+      "onchain-analytics-api",
+    ],
   },
   {
     alias: "premium-research-feed",
-    names: ["高级研究数据源", "Premium Research Feed", "premium-research-feed"],
+    names: [
+      "\u9ad8\u7ea7\u7814\u7a76\u6570\u636e\u6e90",
+      "Premium Research Feed",
+      "premium-research-feed",
+    ],
   },
 ];
 
 export const samplePrompts = [
-  `${PAY} 0.001 SETH ${TO} 数据 API 服务商`,
-  `${PAY} 0.005 SETH ${TO} AI 推理服务`,
-  `${PAY} 0.01 SETH ${TO} 链上分析 API`,
-  `${PAY} 0.05 SETH ${TO} 高级研究数据源`,
+  `${PAY} 0.0001 SETH ${TO} \u6570\u636e API \u670d\u52a1\u5546`,
+  `${PAY} 0.0001 SETH ${TO} AI \u63a8\u7406\u670d\u52a1`,
+  `${PAY} 0.0001 SETH ${TO} \u94fe\u4e0a\u5206\u6790 API`,
+  `${PAY} 0.0001 SETH ${TO} \u9ad8\u7ea7\u7814\u7a76\u6570\u636e\u6e90`,
   "approve unlimited USDC",
 ];
 
@@ -80,7 +99,7 @@ function parseRecipient(input: string) {
   const match = input.match(/0x[a-zA-Z0-9]+/);
   if (match) return match[0];
 
-  const aliasMatch = input.match(/(?:to|给)\s+([a-z0-9-]+)/i);
+  const aliasMatch = input.match(/(?:to|\u7ed9)\s+([a-z0-9-]+)/i);
   return aliasMatch?.[1] ?? ZERO_ADDRESS;
 }
 
