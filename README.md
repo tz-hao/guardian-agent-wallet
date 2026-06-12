@@ -118,10 +118,10 @@ Default payment request scenarios:
 
 | Scenario | Command | Trusted recipient alias | Expected decision |
 | --- | --- | --- | --- |
-| 数据 API 服务商 | `支付 0.001 SETH 给 数据 API 服务商` | `data-api-provider` | `ALLOW` |
-| AI 推理服务 | `支付 0.005 SETH 给 AI 推理服务` | `ai-inference-service` | `ALLOW` |
-| 链上分析 API | `支付 0.01 SETH 给 链上分析 API` | `onchain-analytics-api` | `ALLOW` |
-| 高级研究数据源 | `支付 0.05 SETH 给 高级研究数据源` | `premium-research-feed` | `ALLOW` |
+| 数据 API 服务商 | `支付 0.0001 SETH 给 数据 API 服务商` | `data-api-provider` | `ALLOW` |
+| AI 推理服务 | `支付 0.0001 SETH 给 AI 推理服务` | `ai-inference-service` | `ALLOW` |
+| 链上分析 API | `支付 0.0001 SETH 给 链上分析 API` | `onchain-analytics-api` | `ALLOW` |
+| 高级研究数据源 | `支付 0.0001 SETH 给 高级研究数据源` | `premium-research-feed` | `ALLOW` |
 
 Attack simulation scenarios:
 
@@ -173,6 +173,13 @@ Recipient resolution is server-side:
 - The server resolves the alias through `CAW_RECIPIENT_DATA_API`, `CAW_RECIPIENT_AI_INFERENCE`, `CAW_RECIPIENT_ONCHAIN_ANALYTICS`, or `CAW_RECIPIENT_RESEARCH_FEED`.
 - In local demo mode only, missing recipient-specific env vars may fall back to `CAW_DESTINATION` and the UI marks that address as fallback.
 - API keys remain server-only and are never returned to the frontend.
+
+Reusable base CAW Pact:
+
+- CAW enforces the verified execution scope: `chain_in = SETH`, `token_in = SETH`, `deny_if.amount_gt = 0.001`, expiry after June 15, 2026 via `time_elapsed`, and total spend completion via `amount_spent = 0.05 SETH`.
+- Guardian enforces application-level controls before CAW execution: trusted recipient resolver, service alias to EVM address mapping, daily demo budget, risk score, attack simulation denial, and audit log.
+- The current reusable Pact intentionally does not guess unsupported recipient allowlist or daily budget fields.
+- For Real CAW Mode, use a payment at or below `0.001 SETH`, such as `支付 0.0001 SETH 给 数据 API 服务商`.
 
 ## Runtime Modes
 
