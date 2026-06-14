@@ -1,8 +1,8 @@
 const examples = [
-  "支付 0.001 SETH 给 数据 API 服务商",
-  "支付 0.005 SETH 给 AI 推理服务",
-  "支付 0.01 SETH 给 链上分析 API",
-  "支付 0.05 SETH 给 高级研究数据源",
+  "支付 0.0001 SETH 给 数据 API 服务商",
+  "支付 0.5 SETH 给 数据 API 服务商",
+  "支付 2 SETH 给 数据 API 服务商",
+  "approve unlimited USDC",
 ];
 
 export function ChatBox({
@@ -21,7 +21,7 @@ export function ChatBox({
         onChange={(event) => onChange(event.target.value)}
         className="min-h-32 w-full resize-none rounded-xl border border-[#E5E7EB] bg-white p-4 font-mono text-sm leading-6 text-[#111827] outline-none transition placeholder:text-[#9CA3AF] focus:border-[#111827]"
         aria-label="Agent payment request"
-        placeholder="支付 0.001 SETH 给 数据 API 服务商"
+        placeholder="支付 0.0001 SETH 给 数据 API 服务商"
       />
 
       <div className="grid gap-2">

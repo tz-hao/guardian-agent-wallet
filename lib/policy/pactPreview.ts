@@ -1,4 +1,5 @@
 import type { AgentProfile, PaymentRequest, PolicyDecision, WalletInfo } from "@/types";
+import { guardianPolicyConfig } from "@/lib/policy/securityConfig";
 
 export type PactPreviewData = {
   intent: string;
@@ -9,6 +10,17 @@ export type PactPreviewData = {
   policyDecision: PolicyDecision["decision"];
   expectedCawMode: "Real CAW Mode" | "CAW Fallback Mode" | "Mock Mode";
   humanApprovalRequired: boolean;
+  cawPactBoundary: {
+    permission: string;
+    chain: string;
+    token: string;
+    maxSingleTransfer: string;
+  };
+  guardianAutoBoundary: {
+    autoExecuteRule: string;
+    autoThreshold: string;
+    confirmationRule: string;
+  };
   cawRequestPreview: {
     chainId: string;
     tokenId: string;
@@ -34,7 +46,7 @@ export function buildPactPreview({
 }): PactPreviewData {
   return {
     intent: request.rawInput || `${request.action} ${request.amount} ${request.token}`,
-    amount: request.amount.toFixed(request.amount > 0 && request.amount < 1 ? 3 : 2),
+    amount: request.amount.toFixed(request.amount > 0 && request.amount < 1 ? 4 : 2),
     token: request.token,
     recipient: request.recipient || "none",
     allowedBudget: `${formatSethBudget(agentProfile.singlePaymentLimit)} per payment / ${formatSethBudget(
@@ -43,6 +55,17 @@ export function buildPactPreview({
     policyDecision: decision.decision,
     expectedCawMode: resolveExpectedMode(walletInfo),
     humanApprovalRequired: decision.decision === "CONFIRM",
+    cawPactBoundary: {
+      permission: "can_transfer",
+      chain: "SETH",
+      token: "SETH",
+      maxSingleTransfer: `${guardianPolicyConfig.cawPactMaxSingleTransferSeth} SETH`,
+    },
+    guardianAutoBoundary: {
+      autoExecuteRule: "Auto execute only for low-risk ALLOW payments",
+      autoThreshold: `${guardianPolicyConfig.autoExecuteMaxSeth} SETH`,
+      confirmationRule: `Payments above ${guardianPolicyConfig.autoExecuteMaxSeth} SETH and up to ${guardianPolicyConfig.confirmMaxSeth} SETH require human confirmation`,
+    },
     cawRequestPreview: {
       chainId: "SETH",
       tokenId: request.token,

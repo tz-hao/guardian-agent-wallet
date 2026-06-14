@@ -29,12 +29,14 @@ import {
   buildAuditTimelineItems,
   clearAuditLogs,
   getAuditLogs,
+  recordAutoExecutionTriggered,
   recordIntentAndPolicy,
   recordTransactionExecuted,
   recordUserConfirmation,
 } from "@/lib/audit/auditLog";
 import { parseIntent } from "@/lib/intent/intentParser";
 import { agentProfiles, getAgentProfile } from "@/lib/policy/agentProfiles";
+import { shouldAutoExecutePayment, type ExecutionTrigger } from "@/lib/policy/autoExecute";
 import { evaluatePayment } from "@/lib/policy/policyEngine";
 import { getWalletAdapter } from "@/lib/wallets";
 import type {
@@ -49,7 +51,7 @@ import type {
 
 type DashboardView = "dashboard" | "risk" | "audit";
 
-const defaultPrompt = "支付 0.001 SETH 给 数据 API 服务商";
+const defaultPrompt = "支付 0.0001 SETH 给 数据 API 服务商";
 const walletAdapter = getWalletAdapter();
 
 export function SecurityDashboard({ view }: { view: DashboardView }) {
@@ -61,6 +63,7 @@ export function SecurityDashboard({ view }: { view: DashboardView }) {
   const [walletResult, setWalletResult] = useState<WalletExecutionResult | null>(null);
   const [walletInfo, setWalletInfo] = useState<WalletInfo | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
+  const [autoExecuteEnabled, setAutoExecuteEnabled] = useState(false);
   const [isRefreshingTransactionStatus, setIsRefreshingTransactionStatus] = useState(false);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const auditTimelineItems: AuditTimelineItem[] = buildAuditTimelineItems(auditLogs);
@@ -96,23 +99,45 @@ export function SecurityDashboard({ view }: { view: DashboardView }) {
       wallet: walletInfo,
     });
     setAuditLogs(getAuditLogs());
+
+    if (
+      shouldAutoExecutePayment({
+        autoExecuteEnabled,
+        decision: nextDecision,
+        hasExecuted: false,
+      })
+    ) {
+      void executeRequestFor(nextRequest, nextDecision, "auto");
+    }
   }
 
   async function executeRequest() {
     if (!request || !decision) return;
+    await executeRequestFor(request, decision, "manual");
+  }
 
+  async function executeRequestFor(
+    targetRequest: PaymentRequest,
+    targetDecision: PolicyDecision,
+    executionTrigger: ExecutionTrigger,
+  ) {
     setIsExecuting(true);
     try {
-      if (decision.decision === "CONFIRM") {
-        recordUserConfirmation({ requestId: request.id, confirmed: true });
+      if (targetDecision.decision === "CONFIRM" && executionTrigger === "manual") {
+        recordUserConfirmation({ requestId: targetRequest.id, confirmed: true });
       }
 
-      const result = await walletAdapter.executePayment({ request });
+      if (executionTrigger === "auto") {
+        recordAutoExecutionTriggered({ requestId: targetRequest.id });
+      }
+
+      const result = await walletAdapter.executePayment({ request: targetRequest });
       setWalletResult(result);
       recordTransactionExecuted({
-        requestId: request.id,
+        requestId: targetRequest.id,
         wallet: walletInfo,
         executionResult: result,
+        executionTrigger,
       });
     } catch (error) {
       const failedResult: WalletExecutionResult = {
@@ -121,12 +146,14 @@ export function SecurityDashboard({ view }: { view: DashboardView }) {
         status: "failed",
         walletMode: walletAdapter.mode,
         message: error instanceof Error ? error.message : "Wallet adapter execution failed.",
+        executionTrigger,
       };
       setWalletResult(failedResult);
       recordTransactionExecuted({
-        requestId: request.id,
+        requestId: targetRequest.id,
         wallet: walletInfo,
         executionResult: failedResult,
+        executionTrigger,
       });
     } finally {
       setIsExecuting(false);
@@ -243,6 +270,8 @@ export function SecurityDashboard({ view }: { view: DashboardView }) {
                   decision={decision}
                   agentProfileId={agentProfileId}
                   handleProfileChange={handleProfileChange}
+                  autoExecuteEnabled={autoExecuteEnabled}
+                  setAutoExecuteEnabled={setAutoExecuteEnabled}
                   walletResult={walletResult}
                   isExecuting={isExecuting}
                   isRefreshingTransactionStatus={isRefreshingTransactionStatus}
@@ -263,6 +292,8 @@ export function SecurityDashboard({ view }: { view: DashboardView }) {
                     runScenario={analyzeInput}
                     agentProfileId={agentProfileId}
                     handleProfileChange={handleProfileChange}
+                  autoExecuteEnabled={autoExecuteEnabled}
+                    setAutoExecuteEnabled={setAutoExecuteEnabled}
                   />
                   <RiskReviewPanel
                     request={request}
@@ -275,6 +306,7 @@ export function SecurityDashboard({ view }: { view: DashboardView }) {
                     rejectRequest={rejectRequest}
                     currentProfile={currentProfile}
                     walletInfo={walletInfo}
+                    autoExecuteEnabled={autoExecuteEnabled}
                   />
                 </div>
               ) : null}
@@ -402,6 +434,8 @@ function DashboardGrid({
   decision,
   agentProfileId,
   handleProfileChange,
+  autoExecuteEnabled,
+  setAutoExecuteEnabled,
   walletResult,
   isExecuting,
   isRefreshingTransactionStatus,
@@ -419,6 +453,8 @@ function DashboardGrid({
   decision: PolicyDecision | null;
   agentProfileId: AgentProfileId;
   handleProfileChange: (profileId: AgentProfileId) => void;
+  autoExecuteEnabled: boolean;
+  setAutoExecuteEnabled: (value: boolean) => void;
   walletResult: WalletExecutionResult | null;
   isExecuting: boolean;
   isRefreshingTransactionStatus: boolean;
@@ -438,7 +474,9 @@ function DashboardGrid({
           runScenario={runScenario}
           agentProfileId={agentProfileId}
           handleProfileChange={handleProfileChange}
-        />
+        autoExecuteEnabled={autoExecuteEnabled}
+                    setAutoExecuteEnabled={setAutoExecuteEnabled}
+                  />
         <RiskReviewPanel
           request={request}
           decision={decision}
@@ -450,6 +488,7 @@ function DashboardGrid({
           rejectRequest={rejectRequest}
           currentProfile={currentProfile}
           walletInfo={walletInfo}
+          autoExecuteEnabled={autoExecuteEnabled}
         />
       </div>
     </div>
@@ -463,6 +502,8 @@ function ControlPanel({
   runScenario,
   agentProfileId,
   handleProfileChange,
+  autoExecuteEnabled,
+  setAutoExecuteEnabled,
 }: {
   input: string;
   setInput: (value: string) => void;
@@ -470,10 +511,13 @@ function ControlPanel({
   runScenario: (value: string) => void;
   agentProfileId: AgentProfileId;
   handleProfileChange: (profileId: AgentProfileId) => void;
+  autoExecuteEnabled: boolean;
+  setAutoExecuteEnabled: (value: boolean) => void;
 }) {
   return (
     <div className="grid gap-6">
       <DashboardCard title="Payment Requests" caption="支付请求" icon={<Activity className="h-4 w-4" />}>
+        <AutoExecuteToggle enabled={autoExecuteEnabled} onChange={setAutoExecuteEnabled} />
         <ChatBox value={input} onChange={setInput} onSubmit={analyzeRequest} />
       </DashboardCard>
       <DashboardCard title="Attack Simulation" caption="攻击模拟" icon={<Swords className="h-4 w-4" />}>
@@ -500,6 +544,7 @@ function RiskReviewPanel({
   rejectRequest,
   currentProfile,
   walletInfo,
+  autoExecuteEnabled,
 }: {
   request: PaymentRequest | null;
   decision: PolicyDecision | null;
@@ -511,6 +556,7 @@ function RiskReviewPanel({
   rejectRequest: () => void;
   currentProfile: (typeof agentProfiles)[AgentProfileId];
   walletInfo: WalletInfo | null;
+  autoExecuteEnabled: boolean;
 }) {
   return (
     <div className="grid gap-6">
@@ -532,6 +578,7 @@ function RiskReviewPanel({
               decision={decision}
               walletResult={walletResult}
               isExecuting={isExecuting}
+              autoExecuteEnabled={autoExecuteEnabled}
               onExecute={executeRequest}
               onConfirm={executeRequest}
               onReject={rejectRequest}
@@ -546,6 +593,29 @@ function RiskReviewPanel({
         </DashboardCard>
       )}
     </div>
+  );
+}
+
+function AutoExecuteToggle({
+  enabled,
+  onChange,
+}: {
+  enabled: boolean;
+  onChange: (enabled: boolean) => void;
+}) {
+  return (
+    <label className="mb-4 flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-[#E5E7EB] bg-[#F8F9FA] p-4">
+      <span>
+        <span className="block text-sm font-medium text-[#111827]">自动执行低风险支付</span>
+        <span className="mt-1 block text-xs text-[#6B7280]">Auto-execute low-risk payments</span>
+      </span>
+      <input
+        type="checkbox"
+        checked={enabled}
+        onChange={(event) => onChange(event.target.checked)}
+        className="h-5 w-5 accent-[#111827]"
+      />
+    </label>
   );
 }
 

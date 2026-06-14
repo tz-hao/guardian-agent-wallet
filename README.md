@@ -107,18 +107,39 @@ Open [http://localhost:3000](http://localhost:3000).
 Use the dashboard in this order:
 
 1. Select an Agent Profile.
-2. Pick a realistic Agentic Payment request or an Attack Simulation scenario.
-3. Review parsed intent and transaction preview.
-4. Inspect Risk Intelligence: score, level, triggered rules, and contribution breakdown.
-5. Review Pact Preview: amount, token, recipient, budget, execution mode, and human approval requirement.
-6. Execute only an allowed or confirmed safe payment.
-7. Open Audit Timeline to show recorded evidence.
+2. Toggle Auto Execute Mode if you want low-risk `ALLOW` payments to submit automatically.
+3. Pick a realistic Agentic Payment request or an Attack Simulation scenario.
+4. Review parsed intent and transaction preview.
+5. Inspect Risk Intelligence: score, level, triggered rules, and contribution breakdown.
+6. Review Pact Preview: CAW wallet boundary and Guardian auto-execute boundary.
+7. Execute only an allowed or confirmed safe payment.
+8. Open Audit Timeline to show recorded evidence.
+
+## Demo Video Script
+
+The final 2-3 minute recording should focus on one minimum verifiable flow:
+
+```text
+支付 0.0001 SETH 给 数据 API 服务商
+```
+
+The narration should explain:
+
+- Problem: AI agents need to make payments but should not get unrestricted wallet access.
+- Guardian role: intent parser, risk engine, policy engine, trusted recipient resolver, and audit log.
+- CAW role: Pact, pact-scoped key, wallet execution, permission boundary, and `can_transfer`.
+- Honest status handling: show txHash only when CAW returns it; otherwise show request ID, receipt ID, and CAW status.
+- Final takeaway: AI explains. Policy decides. CAW executes. Human governs. Audit records.
+
+Full recording script: [docs/demo-video-script.md](docs/demo-video-script.md).
 
 Default payment request scenarios:
 
 | Scenario | Command | Trusted recipient alias | Expected decision |
 | --- | --- | --- | --- |
 | 数据 API 服务商 | `支付 0.0001 SETH 给 数据 API 服务商` | `data-api-provider` | `ALLOW` |
+| 人工确认数据支付 | `支付 0.5 SETH 给 数据 API 服务商` | `data-api-provider` | `CONFIRM` |
+| 超过钱包层上限 | `支付 2 SETH 给 数据 API 服务商` | `data-api-provider` | `DENY` |
 | AI 推理服务 | `支付 0.0001 SETH 给 AI 推理服务` | `ai-inference-service` | `ALLOW` |
 | 链上分析 API | `支付 0.0001 SETH 给 链上分析 API` | `onchain-analytics-api` | `ALLOW` |
 | 高级研究数据源 | `支付 0.0001 SETH 给 高级研究数据源` | `premium-research-feed` | `ALLOW` |
@@ -174,12 +195,21 @@ Recipient resolution is server-side:
 - In local demo mode only, missing recipient-specific env vars may fall back to `CAW_DESTINATION` and the UI marks that address as fallback.
 - API keys remain server-only and are never returned to the frontend.
 
-Reusable base CAW Pact:
+Auto Execute Mode:
 
-- CAW enforces the verified execution scope: `chain_in = SETH`, `token_in = SETH`, `deny_if.amount_gt = 0.001`, expiry after June 15, 2026 via `time_elapsed`, and total spend completion via `amount_spent = 0.05 SETH`.
+- Human approves a bounded Pact once in Cobo Agentic Wallet.
+- Low-risk `ALLOW` payments can be auto-submitted when the `自动执行低风险支付 / Auto-execute low-risk payments` toggle is on.
+- `CONFIRM` payments are never auto-executed and require human confirmation.
+- `DENY` payments are blocked before CAW execution.
+
+Recommended CAW Pact permission model:
+
+- CAW enforces the wallet-layer scope: `can_transfer`, `chain_in = SETH`, `token_in = SETH`, `deny_if.amount_gt = 1`, expiry after June 15, 2026 via `time_elapsed`, and total spend completion such as `amount_spent = 1 SETH` or lower for demo.
 - Guardian enforces application-level controls before CAW execution: trusted recipient resolver, service alias to EVM address mapping, daily demo budget, risk score, attack simulation denial, and audit log.
-- The current reusable Pact intentionally does not guess unsupported recipient allowlist or daily budget fields.
-- For Real CAW Mode, use a payment at or below `0.001 SETH`, such as `支付 0.0001 SETH 给 数据 API 服务商`.
+- Guardian auto-execute threshold remains safer and configurable: default `0.001 SETH`.
+- Payments above `0.001 SETH` and up to `1 SETH` require human confirmation.
+- Payments above `1 SETH` are denied.
+- Do not guess unsupported recipient allowlist or daily budget fields in the CAW Pact.
 
 ## Runtime Modes
 
@@ -224,6 +254,24 @@ The project must not fake transaction evidence.
 - A real tx hash should be displayed only when CAW returns a real tx hash.
 - A receipt ID or request ID should be displayed only when CAW returns it.
 - If the transaction hash or receipt is pending, docs and UI should say pending rather than inventing `0x...` evidence.
+
+## Q&A
+
+**Does Auto Execute Mode bypass CAW?**
+
+No. Auto Execute Mode only skips the extra UI click for low-risk `ALLOW` requests. It still calls the server-side CAW execution route and CAW Pact remains the mandatory wallet-layer boundary.
+
+**Can every payment up to 1 SETH auto-execute?**
+
+No. The 1 SETH value is the wallet-layer CAW Pact maximum. Guardian's default auto-execute threshold is `0.001 SETH`; larger payments up to 1 SETH require human confirmation.
+
+**Where are trusted recipients enforced?**
+
+Trusted service aliases are resolved and checked by Guardian before CAW execution. The CAW Pact uses only verified schema fields and does not guess unsupported recipient allowlist or daily budget rules.
+
+**Can the app show a tx hash before CAW returns it?**
+
+No. The UI shows tx hash only when CAW returns a real hash. Pending requests show request ID and status instead.
 
 ## Tech Stack
 

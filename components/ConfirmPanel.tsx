@@ -1,9 +1,11 @@
+import { autoExecuteMessage } from "@/lib/policy/autoExecute";
 import type { PolicyDecision, WalletExecutionResult } from "@/types";
 
 export function ConfirmPanel({
   decision,
   walletResult,
   isExecuting,
+  autoExecuteEnabled,
   onExecute,
   onConfirm,
   onReject,
@@ -13,6 +15,7 @@ export function ConfirmPanel({
   decision: PolicyDecision;
   walletResult: WalletExecutionResult | null;
   isExecuting: boolean;
+  autoExecuteEnabled: boolean;
   onExecute: () => void;
   onConfirm: () => void;
   onReject: () => void;
@@ -23,10 +26,12 @@ export function ConfirmPanel({
     <div className="grid gap-4">
       <div className="rounded-xl border border-[#E5E7EB] bg-[#F8F9FA] p-4">
         <p className="text-xs font-medium text-[#6B7280]">CAW Execution Gate</p>
-        <p className="mt-2 text-sm leading-6 text-[#111827]">{messageFor(decision, walletResult, isExecuting)}</p>
+        <p className="mt-2 text-sm leading-6 text-[#111827]">
+          {messageFor(decision, walletResult, isExecuting, autoExecuteEnabled)}
+        </p>
       </div>
 
-      {decision.decision === "ALLOW" ? (
+      {decision.decision === "ALLOW" && !autoExecuteEnabled ? (
         <button
           onClick={onExecute}
           disabled={isExecuting}
@@ -64,6 +69,9 @@ export function ConfirmPanel({
         <div className="rounded-xl border border-[#E5E7EB] bg-white p-4">
           <p className="text-xs font-medium text-[#6B7280]">执行结果</p>
           <p className="mt-2 text-sm leading-6 text-[#111827]">{walletResult.message}</p>
+          {walletResult.executionTrigger ? (
+            <p className="mt-2 text-xs text-[#6B7280]">Execution trigger: {walletResult.executionTrigger}</p>
+          ) : null}
           {walletResult.txHash ? (
             <div className="mt-3 grid gap-2 rounded-lg border border-[#D1FAE5] bg-[#ECFDF5] p-3">
               <p className="text-xs font-medium text-[#047857]">交易哈希</p>
@@ -166,10 +174,16 @@ function safeJson(value: Record<string, unknown>) {
   return JSON.stringify(value, null, 2).replace(/\[object Object\]/g, "Object");
 }
 
-function messageFor(decision: PolicyDecision, walletResult: WalletExecutionResult | null, isExecuting: boolean) {
+function messageFor(
+  decision: PolicyDecision,
+  walletResult: WalletExecutionResult | null,
+  isExecuting: boolean,
+  autoExecuteEnabled: boolean,
+) {
   if (isExecuting) return "钱包适配器正在准备交易结果。";
   if (walletResult?.success) return walletResult.message;
-  if (decision.decision === "ALLOW") return "低风险请求可在当前策略边界内自动执行。";
-  if (decision.decision === "CONFIRM") return "继续提交到 CAW 前需要人工确认。";
+  if (autoExecuteEnabled) return autoExecuteMessage(decision);
+  if (decision.decision === "ALLOW") return "低风险请求可在当前策略边界内执行。";
+  if (decision.decision === "CONFIRM") return "该请求需要人工确认。";
   return "策略已在钱包执行前拒绝该请求。";
 }

@@ -13,10 +13,10 @@ import type { PaymentRequest } from "../types";
 function request(overrides: Partial<PaymentRequest> = {}): PaymentRequest {
   return {
     id: "test-request",
-    rawInput: "buy 10 USDC ETH",
-    action: "swap",
-    token: "USDC",
-    amount: 10,
+    rawInput: "支付 0.0001 SETH 给 数据 API 服务商",
+    action: "transfer",
+    token: "SETH",
+    amount: 0.0001,
     recipient: "data-api-provider",
     spender: "",
     chainId: 8453,
@@ -45,18 +45,27 @@ describe("policy engine", () => {
   });
 
   it("requires confirmation when a single payment exceeds the limit", () => {
-    const decision = evaluatePayment(request({ amount: 30, token: "SETH" }));
+    const decision = evaluatePayment(request({ amount: 0.5, token: "SETH" }));
 
     assert.equal(decision.decision, "CONFIRM");
     assert.equal(decision.riskLevel, "HIGH");
-    assert.equal(decision.score, 75);
-    assert.deepEqual(decision.triggeredRules, ["single_payment_limit"]);
+    assert.ok(decision.score >= 75);
+    assert.ok(decision.triggeredRules.includes("single_payment_limit"));
+  });
+
+  it("denies payments above the CAW pact max transfer", () => {
+    const decision = evaluatePayment(request({ amount: 2, token: "SETH" }));
+
+    assert.equal(decision.decision, "DENY");
+    assert.equal(decision.riskLevel, "HIGH");
+    assert.equal(decision.score, 100);
+    assert.ok(decision.triggeredRules.includes("caw_pact_max_transfer"));
   });
 
   it("requires confirmation when the daily budget would be exceeded", () => {
     const decision = evaluatePolicies(
-      request({ amount: 20 }),
-      context({ dailySpent: 290, dailyBudgetLimit: 300 }),
+      request({ amount: 0.0001 }),
+      context({ dailySpent: 299.8, dailyBudgetLimit: 300 }),
     );
 
     assert.equal(decision.decision, "CONFIRM");
@@ -137,7 +146,7 @@ describe("policy engine", () => {
     const decision = evaluatePayment(
       request({
         action: "transfer",
-        amount: 10,
+      amount: 0.0001,
         recipient: "data-api-provider",
       }),
       agentProfiles.ResearchAgent,
@@ -151,7 +160,7 @@ describe("policy engine", () => {
     const decision = evaluatePayment(
       request({
         action: "transfer",
-        amount: 20,
+      amount: 0.0001,
         recipient: "data-api-provider",
         token: "DAI",
       }),
@@ -163,11 +172,11 @@ describe("policy engine", () => {
 
   it("uses TradingAgent larger budget", () => {
     const paymentDecision = evaluatePolicies(
-      request({ action: "swap", amount: 200 }),
+      request({ action: "swap", amount: 0.0001 }),
       createPolicyContext(agentProfiles.PaymentAgent),
     );
     const tradingDecision = evaluatePolicies(
-      request({ action: "swap", amount: 200 }),
+      request({ action: "swap", amount: 0.0001 }),
       createPolicyContext(agentProfiles.TradingAgent),
     );
 
@@ -178,15 +187,15 @@ describe("policy engine", () => {
 
   it("defines Day 3 agent governance budgets and permissions", () => {
     assert.deepEqual(agentProfiles.ResearchAgent.allowedActions, ["pay_api"]);
-    assert.equal(agentProfiles.ResearchAgent.dailyBudget, 15_000);
+    assert.equal(agentProfiles.ResearchAgent.dailyBudget, 60);
     assert.ok(!agentProfiles.ResearchAgent.allowedActions.includes("approve"));
 
     assert.deepEqual(agentProfiles.PaymentAgent.allowedActions, ["pay_api", "transfer"]);
-    assert.equal(agentProfiles.PaymentAgent.dailyBudget, 60_000);
+    assert.equal(agentProfiles.PaymentAgent.dailyBudget, 60);
     assert.ok(agentProfiles.PaymentAgent.allowedTokens.includes("SETH"));
 
     assert.deepEqual(agentProfiles.TradingAgent.allowedActions, ["swap", "transfer"]);
-    assert.equal(agentProfiles.TradingAgent.dailyBudget, 300_000);
+    assert.equal(agentProfiles.TradingAgent.dailyBudget, 3000);
     assert.ok(!agentProfiles.TradingAgent.allowedActions.includes("approve"));
   });
 

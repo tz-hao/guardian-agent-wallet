@@ -1,9 +1,12 @@
-import type { PaymentRequest, PolicyDecision } from "@/types";
-import type { AgentProfile } from "@/types";
+import type { AgentProfile, PaymentRequest, PolicyDecision } from "@/types";
 import { defaultAgentProfile, resolveAgentAction } from "@/lib/policy/agentProfiles";
 import { estimateBudgetValue } from "@/lib/policy/budgetValue";
+import {
+  GUARDIAN_CONFIRM_LIMIT,
+  guardianPolicyConfig,
+  isSuspiciousAddress,
+} from "@/lib/policy/securityConfig";
 import { assessRisk } from "@/lib/risk/riskEngine";
-import { isSuspiciousAddress } from "@/lib/policy/securityConfig";
 
 type PolicyDecisionValue = PolicyDecision["decision"];
 type RiskLevel = PolicyDecision["riskLevel"];
@@ -68,7 +71,6 @@ export const AgentPermissionPolicy: PolicyRule = {
   label: "Agent permission",
   evaluate(request, context) {
     const requestedAction = resolveAgentAction(request);
-
     if (context.agentProfile.allowedActions.includes(requestedAction)) return null;
 
     return {
@@ -97,36 +99,52 @@ export const UnknownActionPolicy: PolicyRule = {
   },
 };
 
-export const DailyBudgetPolicy: PolicyRule = {
-  id: "daily_budget",
-  label: "Daily budget",
-  evaluate(request, context) {
-    const budgetValue = estimateBudgetValue(request);
-    if (context.dailySpent + budgetValue <= context.dailyBudgetLimit) return null;
+export const UnlimitedApprovalPolicy: PolicyRule = {
+  id: "unlimited_approval",
+  label: "Unlimited approval",
+  evaluate(request) {
+    if (request.action !== "approve" || !request.isUnlimitedApproval) return null;
 
     return {
       id: this.id,
-      decision: "CONFIRM",
+      decision: "DENY",
       riskLevel: "HIGH",
-      score: 80,
-      reason: `该请求金额超过当前 Agent 每日预算限制（${context.dailyBudgetLimit} budget units），需要人工确认。`,
+      score: 100,
+      reason: "该请求试图创建无限授权，已被策略拒绝。",
     };
   },
 };
 
-export const SinglePaymentLimitPolicy: PolicyRule = {
-  id: "single_payment_limit",
-  label: "Single payment limit",
+export const AllowedTokenPolicy: PolicyRule = {
+  id: "allowed_token",
+  label: "Allowed token",
   evaluate(request, context) {
-    const budgetValue = estimateBudgetValue(request);
-    if (budgetValue <= context.singlePaymentLimit) return null;
+    if (context.allowedTokens.includes(request.token)) return null;
 
     return {
       id: this.id,
-      decision: "CONFIRM",
+      decision: "DENY",
       riskLevel: "HIGH",
-      score: 75,
-      reason: `该请求金额超过当前 Agent 单笔支付限制（${context.singlePaymentLimit} budget units），需要人工确认。`,
+      score: 90,
+      reason: `${request.token} 不在当前 CAW Pact 允许的 Token 范围内，已被策略拒绝。`,
+    };
+  },
+};
+
+export const CawPactMaxTransferPolicy: PolicyRule = {
+  id: "caw_pact_max_transfer",
+  label: "CAW Pact max transfer",
+  evaluate(request) {
+    if (request.action !== "transfer" && request.action !== "swap") return null;
+
+    if (estimateBudgetValue(request) <= GUARDIAN_CONFIRM_LIMIT) return null;
+
+    return {
+      id: this.id,
+      decision: "DENY",
+      riskLevel: "HIGH",
+      score: 100,
+      reason: `该请求金额超过 CAW Pact 与 Guardian 允许的单笔上限（${guardianPolicyConfig.confirmMaxSeth} SETH），已被拒绝。`,
     };
   },
 };
@@ -167,34 +185,35 @@ export const TrustedRecipientPolicy: PolicyRule = {
   },
 };
 
-export const UnlimitedApprovalPolicy: PolicyRule = {
-  id: "unlimited_approval",
-  label: "Unlimited approval",
-  evaluate(request) {
-    if (request.action !== "approve" || !request.isUnlimitedApproval) return null;
+export const SinglePaymentLimitPolicy: PolicyRule = {
+  id: "single_payment_limit",
+  label: "Single payment limit",
+  evaluate(request, context) {
+    if (estimateBudgetValue(request) <= context.singlePaymentLimit) return null;
 
     return {
       id: this.id,
-      decision: "DENY",
+      decision: "CONFIRM",
       riskLevel: "HIGH",
-      score: 100,
-      reason: "该请求试图创建无限授权，已被策略拒绝。",
+      score: 75,
+      reason: `该请求金额超过 Guardian 自动执行阈值（${guardianPolicyConfig.autoExecuteMaxSeth} SETH），但仍在 CAW Pact 上限内，需要人工确认。`,
     };
   },
 };
 
-export const AllowedTokenPolicy: PolicyRule = {
-  id: "allowed_token",
-  label: "Allowed token",
+export const DailyBudgetPolicy: PolicyRule = {
+  id: "daily_budget",
+  label: "Daily budget",
   evaluate(request, context) {
-    if (context.allowedTokens.includes(request.token)) return null;
+    const budgetValue = estimateBudgetValue(request);
+    if (context.dailySpent + budgetValue <= context.dailyBudgetLimit) return null;
 
     return {
       id: this.id,
-      decision: "DENY",
+      decision: "CONFIRM",
       riskLevel: "HIGH",
-      score: 90,
-      reason: `${request.token} 不在当前 CAW Pact 允许的 Token 范围内，已被策略拒绝。`,
+      score: 80,
+      reason: `该请求金额超过当前 Agent 每日预算限制（${context.dailyBudgetLimit} budget units），需要人工确认。`,
     };
   },
 };
@@ -227,6 +246,7 @@ export const defaultPolicyRules: PolicyRule[] = [
   UnknownActionPolicy,
   UnlimitedApprovalPolicy,
   AllowedTokenPolicy,
+  CawPactMaxTransferPolicy,
   TrustedRecipientPolicy,
   SinglePaymentLimitPolicy,
   DailyBudgetPolicy,

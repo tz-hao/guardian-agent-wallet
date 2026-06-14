@@ -111,6 +111,7 @@ export function recordUserConfirmation({
     {
       ...record,
       userConfirmation: confirmed ? "confirmed" : "rejected",
+      executionTrigger: confirmed ? "manual" : record.executionTrigger,
     },
     createAuditEvent({
       type: "User Confirmed",
@@ -125,14 +126,36 @@ export function recordUserConfirmation({
   return nextRecord;
 }
 
+export function recordAutoExecutionTriggered({ requestId }: { requestId: string }) {
+  const record = getAuditRecordByRequestId(requestId);
+  if (!record) return null;
+
+  const nextRecord = appendEvent(
+    {
+      ...record,
+      executionTrigger: "auto",
+    },
+    createAuditEvent({
+      type: "Auto Execution Triggered",
+      title: "自动执行已触发",
+      description: "策略判断为 ALLOW，自动执行模式已将该请求提交到 CAW。",
+    }),
+  );
+
+  upsertAuditRecord(nextRecord);
+  return nextRecord;
+}
+
 export function recordTransactionExecuted({
   requestId,
   wallet,
   executionResult,
+  executionTrigger = "manual",
 }: {
   requestId: string;
   wallet: WalletInfo | null;
   executionResult: WalletExecutionResult;
+  executionTrigger?: "auto" | "manual";
 }) {
   const record = getAuditRecordByRequestId(requestId);
   if (!record) return null;
@@ -144,7 +167,11 @@ export function recordTransactionExecuted({
       txHash: executionResult.txHash || null,
       explorerUrl: executionResult.explorerUrl || null,
       cawStatus: executionResult.cawStatus || executionResult.status,
-      executionResult,
+      executionTrigger,
+      executionResult: {
+        ...executionResult,
+        executionTrigger,
+      },
     },
     createAuditEvent({
       type: "Transaction Executed",
@@ -173,6 +200,7 @@ export function buildAuditTimelineItems(records: AuditLog[]): AuditTimelineItem[
         record.executionResult?.resolvedRecipientAddress
           ? `Resolved recipient: ${record.executionResult.resolvedRecipientAddress}`
           : "Resolved recipient: pending",
+        `Trigger: ${record.executionTrigger ?? "manual"}`,
         record.txHash ? `Tx: ${record.txHash}` : `Wallet: ${record.wallet?.name ?? "未执行"}`,
         record.explorerUrl ? `Explorer: ${record.explorerUrl}` : `CAW status: ${record.cawStatus ?? "pending"}`,
       ],
@@ -208,6 +236,7 @@ function createAuditRecord({
     txHash,
     explorerUrl: executionResult?.explorerUrl || null,
     cawStatus: executionResult?.cawStatus || executionResult?.status || null,
+    executionTrigger: executionResult?.executionTrigger ?? null,
     userConfirmation,
     executionResult,
     events: [
@@ -272,6 +301,7 @@ function getEventTone(event: AuditEvent, record: AuditLog): AuditTimelineItem["t
   if (event.type === "Transaction Executed") {
     return record.executionResult?.success ? "success" : "danger";
   }
+  if (event.type === "Auto Execution Triggered") return "success";
   if (event.type === "User Confirmed" || record.policyDecision.decision === "CONFIRM") {
     return "warning";
   }

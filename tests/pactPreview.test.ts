@@ -6,10 +6,10 @@ import type { PaymentRequest, PolicyDecision, WalletInfo } from "../types";
 
 const request: PaymentRequest = {
   id: "pact-preview-request",
-  rawInput: "send 0.001 SETH to 0x1111111111111111111111111111111111111111",
+  rawInput: "send 0.0001 SETH to 0x1111111111111111111111111111111111111111",
   action: "transfer",
   token: "SETH",
-  amount: 0.001,
+  amount: 0.0001,
   recipient: "0x1111111111111111111111111111111111111111",
   spender: "",
   chainId: 11155111,
@@ -59,7 +59,7 @@ describe("pact preview", () => {
     });
 
     assert.equal(preview.intent, request.rawInput);
-    assert.equal(preview.amount, "0.001");
+    assert.equal(preview.amount, "0.0001");
     assert.equal(preview.token, "SETH");
     assert.equal(preview.recipient, request.recipient);
     assert.equal(preview.policyDecision, "CONFIRM");
@@ -70,8 +70,10 @@ describe("pact preview", () => {
     assert.equal(preview.cawRequestPreview.pactIdStatus, "present");
     assert.equal(preview.cawRequestPreview.resolvedRecipientAddress, request.recipient);
     assert.equal(preview.cawRequestPreview.recipientFallbackStatus, "direct");
-    assert.match(preview.allowedBudget, /25 SETH equivalent/);
-    assert.match(preview.allowedBudget, /100 SETH equivalent/);
+    assert.equal(preview.cawPactBoundary.permission, "can_transfer");
+    assert.equal(preview.cawPactBoundary.maxSingleTransfer, "1 SETH");
+    assert.equal(preview.guardianAutoBoundary.autoThreshold, "0.001 SETH");
+    assert.match(preview.guardianAutoBoundary.confirmationRule, /up to 1 SETH/);
   });
 
   it("shows resolved registry addresses for aliases before execution", () => {

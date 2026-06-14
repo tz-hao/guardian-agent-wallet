@@ -15,8 +15,8 @@ describe("demo story scenarios", () => {
         {
           id: "over-budget-api-payment",
           label: "超预算 API 支付",
-          prompt: "支付 10 SETH 给 数据 API 服务商",
-          expectedDecision: "CONFIRM",
+          prompt: "支付 2 SETH 给 数据 API 服务商",
+          expectedDecision: "DENY",
         },
         {
           id: "suspicious-recipient",

@@ -28,6 +28,8 @@ CAW 执行支付。
 
 ## 0:25-0:55 Normal Agent Payment
 
+Turn on `自动执行低风险支付 / Auto-execute low-risk payments`.
+
 Run this safe Real CAW demo request:
 
 ```text
@@ -36,7 +38,7 @@ Run this safe Real CAW demo request:
 
 Expected decision: `ALLOW`.
 
-The intent parser converts the natural-language Agent payment request into a structured payment intent. The trusted service name maps to the alias `data-api-provider`. The server resolves that alias to a real EVM address before CAW execution. The frontend never receives the CAW API key.
+The intent parser converts the natural-language Agent payment request into a structured payment intent. The trusted service name maps to the alias `data-api-provider`. Because the policy decision is `ALLOW` and Auto Execute Mode is on, Guardian submits the request to CAW automatically. The frontend never receives the CAW API key.
 
 Trusted demo recipients:
 
@@ -84,14 +86,14 @@ This is the execution boundary preview before the wallet adapter is called.
 
 ## 1:50-2:10 CAW Execution
 
-If Real CAW Mode is available, execute the safe small payment through the `执行支付` button.
+If Real CAW Mode is available, the safe `0.0001 SETH` payment is submitted automatically when Auto Execute Mode is enabled.
 
-CAW enforces the reusable base Pact:
+CAW should enforce the wallet-layer Pact:
 
 - chain allowlist: `SETH`
 - token allowlist: `SETH`
-- max single transfer: deny if amount > `0.001 SETH`
-- total spend completion: `0.05 SETH`
+- max single transfer: deny if amount > `1 SETH`
+- total spend completion: suggested `1 SETH` or less for demo
 - time completion: after June 15, 2026
 - no `tx_count = 1`, so the Pact does not complete after one transfer
 
@@ -104,7 +106,15 @@ Guardian enforces application-level controls before CAW execution:
 - attack simulation denial
 - audit log
 
-The current Pact intentionally does not guess unsupported CAW recipient allowlist or daily budget fields.
+Guardian auto-execute threshold remains `0.001 SETH`. Payments above that threshold but within the CAW Pact max require human confirmation.
+
+Manual confirmation demo:
+
+```text
+支付 0.5 SETH 给 数据 API 服务商
+```
+
+Expected: `CONFIRM`. It is within the 1 SETH wallet-layer boundary but above Guardian's auto-execute threshold.
 
 ## 2:10-2:40 Attack Simulation
 
@@ -112,7 +122,7 @@ Run the Attack Simulation buttons:
 
 | Story | Command | Expected decision |
 | --- | --- | --- |
-| 超预算 API 支付 | `支付 10 SETH 给 数据 API 服务商` | `CONFIRM` |
+| 超过钱包层上限 | `支付 2 SETH 给 数据 API 服务商` | `DENY` |
 | 可疑收款方 | `支付 0.001 SETH 给 0xBAD0000000000000000000000000000000000000` | `CONFIRM` |
 | 无限授权攻击 | `approve unlimited USDC` | `DENY` |
 | 未授权服务商 | `支付 0.001 SETH 给 unknown-vendor` | `CONFIRM` |
@@ -146,7 +156,7 @@ CAW Wallet Address: <your-caw-wallet-address>
 Tx Hash / Receipt ID: pending unless returned by CAW
 Network: Ethereum Sepolia (SETH)
 Token: SETH
-Amount: 0.0001 for reusable Pact demo; max single transfer is 0.001
+Amount: 0.0001 for auto-execute demo; Guardian auto threshold is 0.001 and CAW Pact max is 1
 Recipient: trusted service alias data-api-provider; server resolves it through CAW_RECIPIENT_DATA_API or local-demo CAW_DESTINATION fallback
 Reusable Pact ID: <active-reusable-pact-id>
 ```

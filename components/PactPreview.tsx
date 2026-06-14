@@ -58,6 +58,26 @@ export function PactPreview({
           text={preview.humanApprovalRequired ? "Execution requires human approval." : "Low-risk action can continue without manual approval."}
         />
       </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="rounded-xl border border-[#E5E7EB] bg-white p-4">
+          <p className="text-xs font-medium text-[#6B7280]">CAW Pact wallet boundary</p>
+          <div className="mt-3 grid gap-2">
+            <MiniFact label="permission" value={preview.cawPactBoundary.permission} />
+            <MiniFact label="chain" value={preview.cawPactBoundary.chain} />
+            <MiniFact label="token" value={preview.cawPactBoundary.token} />
+            <MiniFact label="max single transfer" value={preview.cawPactBoundary.maxSingleTransfer} tone="warning" />
+          </div>
+        </div>
+        <div className="rounded-xl border border-[#E5E7EB] bg-white p-4">
+          <p className="text-xs font-medium text-[#6B7280]">Guardian auto-execute boundary</p>
+          <div className="mt-3 grid gap-2">
+            <MiniFact label="auto rule" value={preview.guardianAutoBoundary.autoExecuteRule} />
+            <MiniFact label="default auto threshold" value={preview.guardianAutoBoundary.autoThreshold} tone="success" />
+            <MiniFact label="manual confirmation" value={preview.guardianAutoBoundary.confirmationRule} tone="warning" />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

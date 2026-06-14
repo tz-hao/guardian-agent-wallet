@@ -5,10 +5,10 @@ import type { PaymentRequest, PolicyDecision, WalletExecutionResult, WalletInfo 
 
 const request: PaymentRequest = {
   id: "audit-request",
-  rawInput: "支付 0.001 SETH 给 数据 API 服务商",
+  rawInput: "支付 0.0001 SETH 给 数据 API 服务商",
   action: "transfer",
   token: "SETH",
-  amount: 0.001,
+  amount: 0.0001,
   recipient: "data-api-provider",
   spender: "",
   chainId: 8453,
@@ -84,7 +84,7 @@ describe("audit log", () => {
     assert.equal(items.length, 2);
     assert.equal(items[0].title, "收到 Agent 支付请求");
     assert.equal(items[0].tone, "info");
-    assert.ok(items[0].details.some((detail) => detail.includes("TRANSFER 0.001 SETH")));
+    assert.ok(items[0].details.some((detail) => detail.includes("TRANSFER 0.0001 SETH")));
     assert.ok(items[0].details.some((detail) => detail.includes("数据 API 服务商")));
     assert.ok(items[1].details.some((detail) => detail.includes("风险评分: 10")));
   });
@@ -97,5 +97,24 @@ describe("audit log", () => {
     assert.equal(record.executionResult?.requestId, "guardian-caw-audit-request");
     assert.equal(record.executionResult?.walletAddress, "0x1111111111111111111111111111111111111111");
     assert.equal(record.executionResult?.rawCawResponse?.result?.transaction_hash, "0xREALCAWTX");
+  });
+
+  it("records auto execution trigger without faking a transaction hash", () => {
+    const record = createAuditLog(
+      request,
+      decision,
+      {
+        ...executionResult,
+        txHash: "",
+        status: "pending",
+        executionTrigger: "auto",
+      },
+      wallet,
+      "not_required",
+    );
+
+    assert.equal(record.executionTrigger, "auto");
+    assert.equal(record.txHash, null);
+    assert.equal(record.executionResult?.executionTrigger, "auto");
   });
 });

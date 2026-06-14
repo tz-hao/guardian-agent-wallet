@@ -57,6 +57,7 @@ export type LegacyAuditLog = {
 export type AuditEventType =
   | "Intent Parsed"
   | "Policy Evaluated"
+  | "Auto Execution Triggered"
   | "User Confirmed"
   | "Transaction Executed";
 
@@ -82,6 +83,7 @@ export type AuditLog = {
   txHash: string | null;
   explorerUrl?: string | null;
   cawStatus?: string | null;
+  executionTrigger?: "auto" | "manual" | null;
   userConfirmation: UserConfirmationStatus;
   executionResult: WalletExecutionResult | null;
   events: AuditEvent[];
@@ -133,6 +135,7 @@ export type WalletExecutionResult = {
   explorerUrl?: string;
   cawStatus?: string;
   executionMode?: "real-caw" | "caw-fallback" | "mock";
+  executionTrigger?: "auto" | "manual";
   errorCode?:
     | "missing_recipient"
     | "invalid_amount"
